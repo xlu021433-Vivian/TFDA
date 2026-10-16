@@ -1,0 +1,42 @@
+connection_mode: web
+device: 127.0.0.1:16384
+bark:
+  server: https://api.day.app
+  key: ''
+dry_run: true
+claim_coupons:
+- meituan
+- eleme
+meals: []
+order:
+  address: ''
+  delivery_time: '12:00'
+  note: ''
+  max_price: 40
+  avoid_repeat_days: 2
+guard:
+  extra_block: []
+  allow: []
+  scan_ignore: []
+schedule:
+  enabled: false
+  weekdays:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  order_time: '10:00'
+  coupons_time: ''
+  recommend_time: ''
+recommend:
+  keywords:
+  - 牛肉
+  - 清真
+  - 鸡公煲
+  - 轻食
+  platforms:
+  - meituan
+  - eleme
+  deep: false
+  max_shops: 5

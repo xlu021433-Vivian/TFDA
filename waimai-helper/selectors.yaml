@@ -1,0 +1,197 @@
+# ===================== 各平台操作流程 =====================
+# ⚠ 这里的按钮文字是按常见界面写的"初始猜测"，App 经常改版，
+#   第一次使用必须用 `面板「设置 → 校准」或 python main.py dump` 对照你设备上的真实文字校准。
+#
+# 可用动作：
+#   app_start: 包名        重启并打开 App
+#   click: 文字            点击文字完全一致的元素
+#   click_contains: 文字   点击包含该文字的元素
+#   click_any: [a, b]      依次尝试，点第一个找得到的（包含匹配）
+#   click_desc: 文字       点击 content-desc 包含该文字的元素（图标按钮常用）
+#   click_id: resource-id  按控件 id 点击（最稳，用 dump --ids 查）
+#   scroll_to: 文字        在可滚动区域里滚到该文字
+#   input: 文字            往输入框里输入
+#   press: back/enter/search
+#   back_until: 文字       若屏幕上没有该文字就按返回（最多 2 次）
+#   sleep: 秒
+#   pork_scan: true        扫描当前页所有文字，发现疑似猪肉立即中止
+#   read_price: true       读取"合计/实付"价格
+#   ensure_address: 关键词  确认收货地址是这个；不是就去已保存地址里切换，切不到则停止
+# 每个动作可加 optional: true（找不到就跳过）和 timeout: 秒
+# 可用变量：{package} {shop} {keyword} {address} {dish} {note} {delivery_time}
+
+meituan:
+  name: 美团外卖
+  package: com.sankuai.meituan.takeoutnew
+  app_url: "meituanwaimai://"
+  flows:
+    claim_coupons:
+      - app_start: "{package}"
+      - sleep: 6
+      - click_any: ["跳过", "关闭", "我知道了"]
+        optional: true
+      - click_any: ["领红包", "神券", "红包"]
+        optional: true
+      - sleep: 3
+      - click_any: ["一键领取", "立即领取", "领取"]
+        optional: true
+      - sleep: 2
+      - press: back
+    search:
+      - app_start: "{package}"
+      - sleep: 6
+      - click_any: ["跳过", "关闭", "我知道了"]
+        optional: true
+      - ensure_address: "{address}"
+      - click_any: ["搜索"]
+      - sleep: 2
+      - input: "{keyword}"
+      - press: enter
+      - sleep: 4
+    profile:
+      - app_start: "{package}"
+      - sleep: 6
+      - click_any: ["跳过", "关闭", "我知道了"]
+        optional: true
+      - click_any: ["我的"]
+      - sleep: 3
+    open_shop:
+      - app_start: "{package}"
+      - sleep: 6
+      - click_any: ["跳过", "关闭", "我知道了"]
+        optional: true
+      - ensure_address: "{address}"
+      - click_any: ["搜索"]
+      - sleep: 2
+      - input: "{shop}"
+      - press: enter
+      - sleep: 4
+      - click_contains: "{shop}"
+      - sleep: 4
+    add_dish:
+      - scroll_to: "{dish}"
+      - click_contains: "{dish}"
+      - sleep: 2
+      - click_any: ["选规格", "加入购物车", "选好了", "加购"]
+        optional: true
+      - sleep: 1
+      - click_any: ["加入购物车", "选好了"]
+        optional: true
+      - sleep: 1
+      - back_until: "去结算"
+    checkout:
+      - click_any: ["去结算", "去下单"]
+      - sleep: 4
+      - ensure_address: "{address}"
+      - pork_scan: true
+      - click_any: ["立即送出", "送达时间", "预计送达"]
+        optional: true
+      - sleep: 2
+      - click_contains: "{delivery_time}"
+        optional: true
+      - click_any: ["确定", "完成"]
+        optional: true
+      - click_any: ["口味、偏好", "备注"]
+        optional: true
+      - sleep: 2
+      - input: "{note}"
+        optional: true
+      - click_any: ["完成", "确定"]
+        optional: true
+      - sleep: 2
+      - read_price: true
+    submit:
+      - click_any: ["提交订单", "去支付"]
+      - sleep: 4
+      - press: back                 # 退出收银台，订单保持"待支付"
+      - sleep: 2
+      - click_any: ["确认离开", "放弃", "离开"]
+        optional: true
+
+eleme:
+  name: 饿了么/淘宝闪购
+  package: me.ele
+  app_url: "eleme://"
+  flows:
+    claim_coupons:
+      - app_start: "{package}"
+      - sleep: 6
+      - click_any: ["跳过", "关闭", "我知道了"]
+        optional: true
+      - click_any: ["天天领红包", "领红包", "红包"]
+        optional: true
+      - sleep: 3
+      - click_any: ["一键领取", "立即领取", "领取"]
+        optional: true
+      - sleep: 2
+      - press: back
+    search:
+      - app_start: "{package}"
+      - sleep: 6
+      - click_any: ["跳过", "关闭", "我知道了"]
+        optional: true
+      - ensure_address: "{address}"
+      - click_any: ["搜索"]
+      - sleep: 2
+      - input: "{keyword}"
+      - press: enter
+      - sleep: 4
+    profile:
+      - app_start: "{package}"
+      - sleep: 6
+      - click_any: ["跳过", "关闭", "我知道了"]
+        optional: true
+      - click_any: ["我的"]
+      - sleep: 3
+    open_shop:
+      - app_start: "{package}"
+      - sleep: 6
+      - click_any: ["跳过", "关闭", "我知道了"]
+        optional: true
+      - ensure_address: "{address}"
+      - click_any: ["搜索"]
+      - sleep: 2
+      - input: "{shop}"
+      - press: enter
+      - sleep: 4
+      - click_contains: "{shop}"
+      - sleep: 4
+    add_dish:
+      - scroll_to: "{dish}"
+      - click_contains: "{dish}"
+      - sleep: 2
+      - click_any: ["选规格", "加入购物车", "选好了"]
+        optional: true
+      - sleep: 1
+      - click_any: ["加入购物车", "选好了"]
+        optional: true
+      - sleep: 1
+      - back_until: "去结算"
+    checkout:
+      - click_any: ["去结算", "去下单"]
+      - sleep: 4
+      - ensure_address: "{address}"
+      - pork_scan: true
+      - click_any: ["立即送出", "送达时间", "选择送达时间"]
+        optional: true
+      - sleep: 2
+      - click_contains: "{delivery_time}"
+        optional: true
+      - click_any: ["确定", "完成"]
+        optional: true
+      - click_any: ["备注", "口味"]
+        optional: true
+      - sleep: 2
+      - input: "{note}"
+        optional: true
+      - click_any: ["完成", "确定"]
+        optional: true
+      - sleep: 2
+      - read_price: true
+    submit:
+      - click_any: ["提交订单", "去支付"]
+      - sleep: 4
+      - press: back
+      - sleep: 2
+      - click_any: ["确认离开", "放弃", "离开"]
+        optional: true

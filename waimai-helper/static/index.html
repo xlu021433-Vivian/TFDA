@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>神器 · 外卖助手</title>
+<style>
+:root{
+  --bg:#f7f4ef;--card:#fff;--ink:#22201c;--muted:#7a746a;--line:#e7e1d6;
+  --accent:#d9480f;--accent-soft:#fdebe1;--ok:#2f7d4f;--ok-soft:#e3f2e8;--bad:#b42318;--bad-soft:#fde7e5;
+  --chip:#f1ece3;--shadow:0 1px 2px rgba(40,30,10,.06),0 4px 16px rgba(40,30,10,.05);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#171512;--card:#211e1a;--ink:#efe9df;--muted:#a39b8e;--line:#353029;
+  --accent:#ff7a3d;--accent-soft:#3a2418;--ok:#5cc58a;--ok-soft:#1b3326;--bad:#ff7b6e;--bad-soft:#3d1d1a;
+  --chip:#2c2823;--shadow:none}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 -apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:18px 24px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5}
+header h1{margin:0;font-size:18px;letter-spacing:.5px}
+header h1 span{color:var(--accent)}
+.badge{font-size:12px;padding:2px 9px;border-radius:99px;background:var(--chip);color:var(--muted)}
+.badge.warn{background:var(--accent-soft);color:var(--accent)}
+.badge.ok{background:var(--ok-soft);color:var(--ok)}
+nav{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+nav button{border:0;background:none;padding:7px 14px;border-radius:8px;color:var(--muted);font:inherit;cursor:pointer}
+nav button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+main{max-width:1080px;margin:0 auto;padding:22px 16px 60px}
+section{display:none}section.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card h2{margin:0 0 12px;font-size:15px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 16px;border-radius:9px;font:inherit;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn.small{padding:4px 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+input[type=text],input[type=tel],input[type=number],input[type=time],select,textarea{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:7px 10px;font:inherit;width:100%}
+textarea{min-height:60px;resize:vertical}
+label.f{display:block;margin-bottom:12px}
+label.f>span{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.muted{color:var(--muted);font-size:13px}
+.status{display:flex;gap:14px;align-items:center}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}
+.dot.run{background:var(--accent);animation:p 1s infinite}.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
+@keyframes p{50%{opacity:.3}}
+.logs{background:var(--bg);border-radius:9px;padding:10px 12px;height:260px;overflow:auto;font:12px/1.6 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;color:var(--muted)}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;color:var(--muted);font-weight:500}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;margin:3px 4px 3px 0;border-radius:99px;background:var(--chip);font-size:13px;cursor:pointer;user-select:none}
+.chip.sel{background:var(--ok-soft);color:var(--ok);font-weight:600}
+.chip.bad{background:var(--bad-soft);color:var(--bad);cursor:help}
+.shop{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px;background:var(--card)}
+.shop.dim{opacity:.55}
+.shop .top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.shop .name{font-weight:600;font-size:15px}
+.deal{color:var(--accent);font-weight:600;font-size:13px}
+details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:6px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none;max-width:90vw}
+.toast.on{opacity:1}
+.switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.warnbox{background:var(--accent-soft);color:var(--accent);border-radius:9px;padding:10px 12px;font-size:13px;margin-top:10px}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+.login-intro{display:flex;gap:16px;align-items:flex-start;justify-content:space-between}
+.login-intro h2{font-size:22px;line-height:1.3;letter-spacing:-.3px;margin-bottom:8px}
+.login-intro p{margin:0;max-width:660px}
+.login-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:16px;align-items:start}
+.login-status{display:flex;align-items:center;gap:8px;font-weight:600;margin:12px 0}
+.login-form label.f{margin-bottom:12px}
+.login-form input{min-height:40px}
+.login-form .code-row{display:flex;gap:8px;align-items:center}
+.login-form .code-row input{flex:1;min-width:0}
+.privacy-consent{display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.6;margin:16px 0}
+.privacy-consent input{margin-top:4px;flex:none}
+.privacy-consent a,.official-entry a{color:var(--accent);text-decoration:none}
+.privacy-consent a:hover,.official-entry a:hover{text-decoration:underline}
+.official-entry{padding:12px 0;border-bottom:1px solid var(--line)}
+.official-entry:last-child{border-bottom:0;padding-bottom:0}
+.official-entry .row{justify-content:space-between;margin-bottom:4px}
+.official-entry p{margin:0}
+.privacy-points{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.privacy-points b{display:block;margin-bottom:4px}
+.auth-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.login-capability{background:var(--bg);border-radius:8px;padding:12px;margin-top:16px}
+.security-verify{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:12px}
+.security-verify img{display:block;width:180px;height:180px;background:#fff;margin:12px 0}
+.login-guide{margin:0;padding-left:20px;line-height:1.8}
+.btn:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+[hidden]{display:none!important}
+@media(max-width:760px){.login-layout,.privacy-points{grid-template-columns:1fr}.login-intro{flex-direction:column}.login-intro h2{font-size:20px}}
+@media (max-width:640px){header{flex-wrap:wrap;padding:14px 16px}nav{margin-left:0}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🍱 外卖<span>助手</span></h1>
+  <span id="modeBadge" class="badge"></span>
+  <nav id="nav">
+    <button data-t="browser" class="on">网页点餐</button>
+    <button data-t="home">总览</button>
+    <button data-t="buy">官方接口（高级）</button>
+    <button data-t="rec">推荐</button>
+    <button data-t="meals">安全清单</button>
+    <button data-t="acct">账号与登录</button>
+    <button data-t="set">设置</button>
+  </nav>
+</header>
+
+<main>
+<div id="serverWarning" class="warnbox" role="alert" hidden>后台登录模块未启动。请关闭旧的外卖助手运行窗口，再双击“启动外卖助手.bat”重新打开。仅刷新网页不会更新后台。</div>
+<section id="browser" class="on">
+  <div class="card">
+    <div class="login-intro"><div><h2>用自己的账号，选好这一餐。</h2><p class="muted">在电脑 Chrome／Edge 的美团网页上选餐。无需申请美团开发者权限，不用安卓或模拟器；iPhone 用于本人登录和付款。</p></div><span class="badge">浏览器扩展</span></div>
+    <div class="row" style="margin-top:20px"><a class="btn primary" href="/api/browser-extension.zip">下载网页点餐助手</a><a class="btn" href="/static/browser-help.html" target="_blank" rel="noopener noreferrer">安装与使用说明</a><a class="btn" href="https://h5.waimai.meituan.com/waimai/mindex/home" target="_blank" rel="noopener noreferrer">打开美团网页版 ↗</a></div>
+  </div>
+  <div class="card"><h2>已记住你的点餐规则</h2><p><b>不吃猪肉 · 必须用券 · 可免费膨胀时先膨胀一张 · 付款由你完成</b></p><p>进入商家后，可在扩展里输入“我想喝奶茶，预算30元，一杯”，也可以随机挑选一餐。找不到符合忌口和预算的商品，或没有实际用券，就暂停。</p></div>
+  <div class="card"><h2>工作日11点，生成订单号后通知你</h2><p>0.3版扩展增加北京时间定时、附近餐饮商家随机挑选、券后含配送费25元预算，以及真实订单号与待支付状态识别。打开扩展中的“定时点餐与付款通知”，确认官方配送地址后启用。</p><p class="muted">复用本机已有Bark配置；仅导出一个通知连接码，不导出Bark密钥。安装扩展后，将连接码保存到扩展设置，再发送一次测试通知。电脑、浏览器和本机助手需保持运行；睡眠或关闭可能错过任务。</p><button class="btn" id="pairNotification" onclick="pairBrowserNotification()">获取扩展通知连接码</button><p id="pairNotificationMessage" class="muted" role="status"></p><label class="f" id="pairNotificationBox" hidden><span>只粘贴到你安装的神器扩展，不要提交到GitHub</span><input id="pairNotificationToken" type="password" autocomplete="off" readonly aria-label="扩展通知连接码"><button class="btn small" onclick="copyBrowserNotificationCode()">复制连接码</button></label></div>
+  <div class="card"><h2>第一次使用</h2><ol class="login-guide"><li>解压扩展，在电脑 Chrome／Edge 的扩展管理页加载解压文件夹。已安装旧版时，替换文件后点扩展管理页的刷新。Codex 内置浏览器不能直接加载此扩展。</li><li>在美团官方网页亲自登录、选择地址并进入商家菜单。</li><li>打开神器扩展，说出品类和预算；随机挑选后核对食材、当前商家与配送地址，勾选本次单笔授权，开始自助加购。</li><li>复杂规格在官方弹窗中确认。助手核对数量、去结算，尝试免费膨胀一张券并选择可用券，再核对实际抵扣及最终合计。</li><li>满足本次授权条件时，助手自动单次创建待支付订单，你在官方页面付款。未提前授权则停在预览；可在设置中改为只到预览。</li></ol></div>
+  <div class="card"><h2>当前支持范围</h2><p>手动点餐读取当前商家菜单；定时模式从附近已加载餐饮商家随机选店，最多检查5家。支持常见品类、份数和预算表达，不为凑券自动增购；经授权可确认官方已选中的默认规格，复杂或未选全的规格暂停。菜名筛选不能保证实际配料安全。</p><p class="muted">淘宝闪购尚未验证。自动提交和真实订单详情识别尚未在真实账号上端到端验证；不会把一次点击显示为下单成功。扩展的定时、订单记录、通知连接码与运行数据仅保存在本机，不上传GitHub。</p></div>
+</section>
+<!-- 总览 -->
+<section id="home">
+  <div id="webModeNote" class="card" hidden>
+    <h2>使用网页助手点餐</h2>
+      <p class="muted">在电脑 Chrome／Edge 中使用本人登录的美团网页，无需申请平台应用。下方原有自动化任务属于安卓模式；网页点餐请从专用入口开始。</p>
+    <button class="btn primary" onclick="showSection('browser')">前往网页点餐</button>
+  </div>
+  <div class="card">
+    <div class="status"><div id="dot" class="dot"></div><div><b id="jobTitle">空闲</b><div id="jobMsg" class="muted"></div></div></div>
+    <div class="row" style="margin-top:16px">
+      <button class="btn primary" onclick="run('order')">立即领券并下单</button>
+      <button class="btn" onclick="run('coupons')">只领券</button>
+      <button class="btn" onclick="run('recommend')">抓取推荐</button>
+    </div>
+    <div id="schedLine" class="muted" style="margin-top:12px"></div>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>最近记录</h2><div id="history"></div></div>
+    <div class="card"><h2>运行日志</h2><div id="logs" class="logs"></div></div>
+  </div>
+</section>
+
+<!-- 推荐 -->
+<section id="rec">
+  <div class="card">
+    <h2>从 App 里抓取推荐</h2>
+    <label class="f"><span>搜索关键词（用逗号分隔，建议写不含猪肉的品类）</span><input id="kw" type="text"></label>
+    <div class="row">
+      <label class="switch"><input type="checkbox" id="rp_meituan"> 美团</label>
+      <label class="switch"><input type="checkbox" id="rp_eleme"> 饿了么/淘宝闪购</label>
+      <label class="switch"><input type="checkbox" id="rdeep"> 进店读完整菜单（更全，但慢）</label>
+      <button class="btn primary" style="margin-left:auto" onclick="runRec()">开始抓取</button>
+    </div>
+    <p class="muted" style="margin-bottom:0">绿色菜品是规则判断「不含猪肉」的，<b>仍需你确认</b>；勾选后加入安全清单，以后下单只会从清单里选。</p>
+  </div>
+  <div id="recMeta" class="muted" style="margin:0 4px 10px"></div>
+  <div id="recList"></div>
+</section>
+
+<!-- 安全清单 -->
+<section id="meals">
+  <div class="card">
+    <div class="row" style="margin-bottom:10px"><h2 style="margin:0">安全清单</h2>
+      <span class="muted">只放你确认过不含猪肉的店和菜。每天从启用的里面轮换。</span></div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>启用</th><th>名称</th><th>平台</th><th>店名（搜索用）</th><th>菜品（逗号分隔）</th><th>送到（可选）</th><th></th></tr></thead>
+      <tbody id="mealRows"></tbody>
+    </table></div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn" onclick="addMeal()">＋ 添加一行</button>
+      <button class="btn primary" onclick="saveMeals()">保存</button>
+    </div>
+    <div id="mealWarn"></div>
+  </div>
+  <div class="card">
+    <h2>测试防猪肉规则</h2>
+    <div class="row"><input id="testNames" type="text" placeholder="输入菜名，逗号分隔，如：青椒肉丝,牛肉水饺" style="flex:1">
+      <button class="btn" onclick="testGuard()">检查</button></div>
+    <div id="testOut" style="margin-top:10px"></div>
+  </div>
+</section>
+
+<!-- 账号 -->
+<section id="acct">
+  <div class="card">
+    <div class="login-intro"><div><h2>用自己的账号，去官方完成登录</h2>
+      <p class="muted">美团手机号授权在下方操作；扫码、微信、淘宝及支付宝方式在对应官方页面完成。网页登录状态由平台和浏览器管理，本软件不读取。</p>
+    </div><span class="badge ok">登录凭证仅存运行内存</span></div>
+  </div>
+  <div class="login-layout">
+    <div class="card">
+      <h2>美团 · 手机号授权</h2>
+      <div id="webAuthStatus" class="login-status" role="status" aria-live="polite">正在读取本机授权状态…</div>
+      <p class="muted">使用美团官方红包助手的短信接口。授权完成后不读取昵称、头像、收货地址、联系人、订单或支付信息。</p>
+      <form id="phoneLoginForm" class="login-form" autocomplete="off" onsubmit="event.preventDefault();verifyLoginSms()">
+        <label class="f"><span>中国大陆手机号 · 仅转发给美团官方</span><input id="authPhone" type="tel" inputmode="numeric" maxlength="11" autocomplete="off" spellcheck="false" placeholder="输入自己的 11 位手机号" aria-label="美团账号手机号"></label>
+        <label class="f"><span>短信验证码 · 验证后立即清空输入</span><div class="code-row"><input id="authCode" type="text" inputmode="numeric" maxlength="8" autocomplete="off" spellcheck="false" placeholder="收到后输入" aria-label="美团短信验证码"><button class="btn small" id="sendLoginSmsButton" type="button" onclick="sendLoginSms()">获取验证码</button></div></label>
+        <label class="privacy-consent"><input type="checkbox" id="authConsent"><span>我已阅读<a href="https://open-pepper.meituan.com/eds/rules/meituan-coupon-skill-service-rule.html" target="_blank" rel="noopener noreferrer">服务规则</a>、<a href="https://rules-center.meituan.com/rule-detail/4/1" target="_blank" rel="noopener noreferrer">美团用户协议</a>和<a href="https://rules-center.meituan.com/m/detail/guize/2" target="_blank" rel="noopener noreferrer">隐私政策</a>，同意仅将本次手机号、验证码及随机会话标识发送给美团官方用于授权。软件不保存这些输入。</span></label>
+        <button class="btn primary" type="submit" id="verifyLoginSmsButton">验证并授权</button>
+        <p class="muted" id="loginSteps">先填写手机号并点击“获取验证码”，收到短信后再输入验证码，点击“验证并授权”。</p>
+      </form>
+      <div class="security-verify" id="authSecurity" hidden>
+        <b>需要在美团官方页面完成安全验证</b>
+        <p class="muted">这是官方接口返回的验证页面，不是软件生成的登录凭证。完成后输入收到的短信验证码。</p>
+        <img id="authSecurityQr" alt="美团官方安全验证页面二维码">
+        <a class="btn small" href="/api/auth/security-page" target="_blank" rel="noopener noreferrer">打开美团官方验证页面</a>
+      </div>
+      <div class="auth-actions"><button class="btn small" type="button" id="checkWebAuthButton" onclick="checkWebAuth()">验证授权状态</button><button class="btn small" type="button" id="clearWebAuthButton" onclick="clearWebAuth()">清除本软件授权</button></div>
+      <div id="authMessage" class="muted" style="margin-top:12px" role="status" aria-live="polite"></div>
+      <div class="login-capability"><b>红包认证与外卖授权分开管理</b><p class="muted" style="margin:4px 0 0">本次短信认证用于红包助手。查店、选餐和提交订单请前往“官方订餐”，配置获准的消费者应用并完成 OAuth 授权；业务权限及真实可用性仍需平台联调验证。</p><button class="btn small" type="button" onclick="showSection('buy')">前往官方订餐</button></div>
+    </div>
+    <div>
+      <div class="card"><h2>扫码、微信、淘宝与支付宝</h2>
+        <div class="official-entry"><div class="row"><b>美团 · 微信快捷登录</b><span class="badge">官方网页</span></div><p class="muted">在美团官方页选择微信快捷登录或手机号方式，以页面提供的选项为准。</p><div class="auth-actions"><a class="btn small" href="/api/auth/official/meituan" target="_blank" rel="noopener noreferrer">打开美团官方登录</a></div></div>
+        <div class="official-entry"><div class="row"><b>淘宝账号 · 扫码或手机号</b><span class="badge">官方网页</span></div><p class="muted">打开淘宝官方登录页，在平台页面完成扫码或手机号登录。淘宝网页登录不会自动授权本软件操作闪购。</p><div class="auth-actions"><a class="btn small" href="/api/auth/official/taobao" target="_blank" rel="noopener noreferrer">打开淘宝官方登录</a><a class="btn small" href="/api/auth/official/shangou" target="_blank" rel="noopener noreferrer">查看淘宝闪购官网</a></div></div>
+        <div class="official-entry"><div class="row"><b>支付宝 · 官方扫码登录</b><span class="badge">官方网页</span></div><p class="muted">使用 iPhone 上的支付宝扫描官方页面二维码。与淘宝账号的关联由平台处理，本软件不读取支付账户或余额。</p><div class="auth-actions"><a class="btn small" href="/api/auth/official/alipay" target="_blank" rel="noopener noreferrer">打开支付宝官方登录</a></div></div>
+      </div>
+      <div class="card"><h2>网页登录与软件授权的区别</h2><ol class="login-guide"><li>打开官方页，由你本人完成登录。</li><li>软件不会读取网页 Cookie，也不会猜测是否登录成功。</li><li>微信、支付宝尚未配置本软件的开放平台应用；淘宝闪购消费者授权接口尚未接入。</li></ol><p class="muted" style="margin-bottom:0">因此这些入口标为“官方网页”，不会显示成本软件“已连接”。</p></div>
+    </div>
+  </div>
+  <div class="card"><h2>登录信息如何处理</h2><div class="privacy-points">
+    <div><b>不索取账号密码</b><span class="muted">不提供密码输入框，不读取微信、淘宝、支付宝网页内容或 Cookie。</span></div>
+    <div><b>仅保留必要授权</b><span class="muted">手机号和验证码临时转发到美团官方；凭证仅在当前进程内存保留，最长两小时。</span></div>
+    <div><b>随时清除</b><span class="muted">点击“清除本软件授权”或关闭软件即可清除本软件凭证；浏览器登录需在官方网页单独退出。</span></div>
+  </div></div>
+  <div class="card" id="androidAccounts" hidden>
+    <h2>安卓设备中的平台账号</h2><p class="muted">这是原有安卓操作流程，与上方网页登录和短信授权分别管理。仅在安卓设备模式下使用。</p>
+    <div class="grid" id="acctCards"></div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" onclick="run('accounts')">检查登录状态</button></div>
+  </div>
+</section>
+
+<section id="buy">
+  <div class="card"><h2>美团 · 官方消费者订餐</h2><p class="muted">按美团外卖通用解决方案文档开发，无需模拟器。必须使用已获准的应用和消费者 OAuth 授权，红包助手凭证不能替代。当前尚未使用真实应用完成平台联调。</p><div id="buyStatus" class="login-status" role="status"></div><p id="buyBudget" class="muted"></p><div id="buyMessage" role="status" aria-live="polite" class="warnbox"></div><div id="buyUncertain" class="warnbox" hidden>上次提交结果未知，软件不会自动重试。请先到美团官方 App 核对订单，再决定后续操作。</div></div>
+  <div class="card"><h2>1. 本机配置与官方授权</h2><p class="muted">AppSecret、签名密钥和授权令牌只存本机服务内存，最长两小时；不写配置、日志或浏览器存储。软件不调用用户资料或地址簿接口。</p>
+    <form autocomplete="off" onsubmit="event.preventDefault();orderingConfigure()">
+      <div class="grid"><label class="f"><span>美团分配的应用 ID</span><input type="text" id="buyAppId" autocomplete="off"></label><label class="f"><span>OAuth AppSecret</span><input type="password" id="buyAppSecret" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)"></label><label class="f"><span>消费者接口签名密钥 secret_sign</span><input type="password" id="buySignSecret" autocomplete="off" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)"></label></div>
+      <p class="muted">平台需登记并允许此回调地址：<code id="buyCallback"></code>。如平台不接受本机回调，需要获准的服务端部署，当前本地软件不能代替。</p>
+      <div class="auth-actions"><button class="btn primary" type="submit" id="buyConfigureButton">临时配置应用</button><button class="btn" type="button" id="buyAuthorizeButton" onclick="orderingAuthorize()">生成官方授权链接</button><a id="buyAuthorizeLink" class="btn" target="_blank" rel="noopener noreferrer" hidden>前往美团官方授权</a><button class="btn" type="button" id="buyClearButton" onclick="orderingClear()">清除外卖应用和授权</button></div>
+    </form>
+    <p class="muted"><a href="https://developer.meituan.com/docs/biz/biz_wmh5api_4bd84411-fbc1-4668-b1e6-8c5cf255b1f4" target="_blank" rel="noopener noreferrer">查看官方消费者接入文档</a></p>
+  </div>
+  <div class="card"><h2>2. 按位置查店、选餐</h2><p class="muted">填写 GCJ-02 坐标的角度值，例如东经 116.49、北纬 40.00。软件不会自动获取定位。未经审核的应用可能仅允许文档规定的测试位置和测试商家；这些限制由美团决定。</p>
+    <label class="privacy-consent"><input type="checkbox" id="buyConsent" onchange="orderingInvalidate()"><span>我同意将本次主动填写的位置、收货信息和所选菜品发送给美团，用于查店、订单预览及经我确认后的创建订单。信息仅在本次本机服务内存中临时处理，不保存到文件。</span></label>
+    <form onsubmit="event.preventDefault();orderingSearch()"><div class="grid"><label class="f"><span>当前位置 · 经度</span><input type="number" step="any" id="buyLongitude" placeholder="116.49" onchange="orderingLocationChanged()"></label><label class="f"><span>当前位置 · 纬度</span><input type="number" step="any" id="buyLatitude" placeholder="40.00" onchange="orderingLocationChanged()"></label><label class="f"><span>商家或菜品关键词</span><input type="text" id="buyKeyword" maxlength="80"></label></div><button class="btn primary" type="submit" id="buySearchButton">查询美团商家</button></form>
+    <div id="buyShops" style="margin-top:16px"></div><div id="buyMenu"></div>
+  </div>
+  <div class="card"><h2>3. 填写本次收货信息、预览金额</h2><p class="muted">仅处理你在这里填写的信息，不读取已有地址簿。不支持根据菜名判断隐藏配料，严格忌口请先向商家确认。</p>
+    <div class="grid"><label class="f"><span>收货人</span><input type="text" id="buyReceiver" maxlength="40" autocomplete="off" onchange="orderingInvalidate()"></label><label class="f"><span>收货手机号</span><input type="tel" id="buyPhone" maxlength="11" autocomplete="off" onchange="orderingInvalidate()"></label></div>
+    <label class="f"><span>完整收货地址（含门牌）</span><input type="text" id="buyAddress" maxlength="200" autocomplete="off" onchange="orderingInvalidate()"></label>
+    <div class="grid"><label class="f"><span>收货位置 · 经度（留空沿用查询位置）</span><input type="number" step="any" id="buyAddressLongitude" onchange="orderingInvalidate()"></label><label class="f"><span>收货位置 · 纬度（留空沿用查询位置）</span><input type="number" step="any" id="buyAddressLatitude" onchange="orderingInvalidate()"></label></div>
+    <label class="f"><span>给商家的本次备注</span><input type="text" id="buyNote" maxlength="200" autocomplete="off" onchange="orderingInvalidate()"></label>
+    <label class="privacy-consent"><input type="checkbox" id="buyFoodConfirmed" onchange="orderingInvalidate()"><span>我已确认所选菜品及规格符合自己的忌口要求。</span></label><button class="btn primary" type="button" id="buyPreviewButton" onclick="orderingPreview()">获取平台订单预览</button>
+    <div id="buyQuote" class="login-capability"></div><label class="privacy-consent"><input type="checkbox" id="buyConfirm"><span>我已核对当前预览的商家、菜品规格、数量、地址和金额，同意创建这一笔订单。试运行模式只演练，不创建订单。</span></label><button class="btn primary" type="button" id="buySubmitButton" onclick="orderingSubmit()">确认当前预览并提交</button>
+  </div>
+  <div id="buyReceipt" class="card" hidden><h2>本次提交结果</h2><p id="buyReceiptText"></p><a id="buyPayment" class="btn primary" href="/api/ordering/payment" target="_blank" rel="noopener noreferrer" hidden>打开美团官方收银台</a></div>
+</section>
+
+<!-- 设置 -->
+<section id="set">
+  <div class="grid">
+    <div class="card">
+      <h2>使用方式与推送</h2>
+      <label class="f"><span>使用方式</span><select id="s_connection"><option value="web">网页助手 · 无需安卓设备</option><option value="android">安卓设备 · 原有自动操作</option></select></label>
+      <label class="f"><span>安卓设备地址（仅安卓模式使用）</span><input id="s_device" type="text"></label>
+      <label class="f"><span>Bark Key（iPhone 推送）</span><input id="s_bark" type="text"></label>
+      <button class="btn small" onclick="testPush()">发送测试推送</button>
+    </div>
+    <div class="card">
+      <h2>下单</h2>
+      <label class="switch" style="margin-bottom:12px"><input type="checkbox" id="s_dry"> 试运行模式（只走到确认页，不提交订单）</label>
+      <div class="grid" style="gap:10px">
+        <label class="f"><span>预约送达时间</span><input id="s_time" type="text" placeholder="12:00"></label>
+        <label class="f"><span>预算上限（元）</span><input id="s_max" type="number"></label>
+        <label class="f"><span>几天内不重复</span><input id="s_rep" type="number"></label>
+      </div>
+      <label class="f"><span>收货地址关键词（App「我的地址」里那条地址的大厦/小区名；结算页对不上就不提交）</span><input id="s_addr" type="text" placeholder="如：望京SOHO"></label>
+      <label class="f"><span>订单备注</span><input id="s_note" type="text"></label>
+      <div class="row"><span class="muted">领券平台：</span>
+        <label class="switch"><input type="checkbox" id="c_meituan"> 美团</label>
+        <label class="switch"><input type="checkbox" id="c_eleme"> 饿了么/淘宝闪购</label></div>
+    </div>
+    <div class="card">
+      <h2>定时</h2>
+      <label class="switch" style="margin-bottom:12px"><input type="checkbox" id="t_on"> 开启定时（软件需保持运行）</label>
+      <div class="row" id="t_days" style="margin-bottom:12px"></div>
+      <div class="grid" style="gap:10px">
+        <label class="f"><span>抓取推荐</span><input id="t_rec" type="time"></label>
+        <label class="f"><span>领券</span><input id="t_cou" type="time"></label>
+        <label class="f"><span>领券并下单</span><input id="t_ord" type="time"></label>
+      </div>
+      <p class="muted" style="margin:0">留空表示不执行。下单会自动先领券。</p>
+    </div>
+    <div class="card">
+      <h2>防猪肉规则</h2>
+      <label class="f"><span>额外禁词（逗号分隔）</span><input id="g_block" type="text"></label>
+      <label class="f"><span>放行词：确认安全但会被误拦的（如 肠粉,卤蛋）</span><input id="g_allow" type="text"></label>
+      <label class="f"><span>确认页忽略：推荐位等非菜品误报文字</span><input id="g_ignore" type="text"></label>
+    </div>
+  </div>
+  <div class="row" style="margin-bottom:16px"><button class="btn primary" onclick="saveSettings()">保存设置</button></div>
+  <div class="card">
+    <h2>校准按钮</h2>
+    <p class="muted">App 改版导致卡住时：在设备上手动走到卡住的那一页，点下面按钮读取屏幕上的真实文字，再对照修改 selectors.yaml。</p>
+    <button class="btn" onclick="run('dump')">读取当前屏幕</button>
+    <div id="dumpOut" style="margin-top:12px;max-height:360px;overflow:auto"></div>
+  </div>
+</section>
+</main>
+<div id="toast" class="toast"></div>
+
+<script src="/static/ordering.js"></script>
+<script>
+let S = null, editingMeals = null, initialized = false, authBusy = false, authQrVersion = 0;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const PN = {meituan:"美团", eleme:"饿了么/闪购"};
+const STATUS = {dry_run:"试运行",pending_payment:"待支付",over_budget:"超预算",aborted_pork:"疑似含猪·中止",blocked_by_list:"清单可疑",failed:"流程卡住"};
+const split = s => s.split(/[,，、]/).map(x=>x.trim()).filter(Boolean);
+
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("on"),2600)}
+async function api(path, body){
+  try {
+    const headers = {"Content-Type":"application/json"};
+    if ((path.startsWith('/api/auth/') || path.startsWith('/api/ordering/')) && body!==undefined) {
+      if (!S?.auth?.csrf) throw new Error('请刷新页面，读取新的登录接口后再操作');
+      headers['X-Login-CSRF'] = S.auth.csrf;
+    }
+    const r = await fetch(path, body===undefined?{cache:'no-store'}:{method:"POST",headers,body:JSON.stringify(body),cache:'no-store'});
+    let data;
+    try { data = await r.json(); }
+    catch { throw new Error("服务器未返回有效数据，请查看软件运行窗口"); }
+    if (!r.ok || data.ok===false) throw new Error(data.message || `请求失败（${r.status}）`);
+    return data;
+  } catch (error) {
+    toast(error.message || "连接失败，请确认软件正在运行");
+    error.reported = true;
+    throw error;
+  }
+}
+window.addEventListener("unhandledrejection", event=>{
+  if (!event.reason?.reported) toast(event.reason?.message || "操作失败，请重试");
+  event.preventDefault();
+});
+
+function showSection(name){
+  if (name!=='acct') clearLoginInputs();
+  if (name!=='buy') clearOrderingInputs();
+  document.querySelectorAll("#nav button").forEach(x=>x.classList.toggle("on",x.dataset.t===name));
+  document.querySelectorAll("section").forEach(s=>s.classList.toggle("on",s.id===name));
+}
+document.querySelectorAll("#nav button").forEach(b=>b.onclick=()=>showSection(b.dataset.t));
+window.addEventListener('pagehide',()=>{clearLoginInputs();clearOrderingInputs();});
+
+async function refresh(first){
+  if (refresh._running) return refresh._running;
+  clearTimeout(refresh._t);
+  refresh._running = (async()=>{
+  try {
+  S = await api("/api/state");
+  const c = S.config;
+  $("modeBadge").className = "badge " + (c.dry_run ? "warn" : "ok");
+  $("modeBadge").textContent = c.connection_mode==='web' ? '网页助手模式' : c.dry_run ? "试运行模式" : "正式模式";
+  renderJob(); renderHistory(); renderLogs(); renderRecs(); renderAccounts();
+  renderOrdering();
+  if (first || !initialized) { fillSettings(); editingMeals = JSON.parse(JSON.stringify(c.meals)); renderMeals(); fillRecForm(); initialized = true; }
+  const s = c.schedule;
+  $("schedLine").textContent = s.enabled
+    ? `⏰ 定时已开启：每周${s.weekdays.map(d=>"一二三四五六日"[d-1]).join("、")}` +
+      [["抓推荐",s.recommend_time],["领券",s.coupons_time],["下单",s.order_time]].filter(x=>x[1]).map(x=>` · ${x[1]} ${x[0]}`).join("")
+    : "⏰ 定时未开启（在「设置」里开启）";
+  } catch (error) {
+    if (!error.reported) toast(error.message || "页面刷新失败，请重试");
+  } finally {
+    refresh._t = setTimeout(()=>refresh(), S?.busy ? 1500 : 5000);
+  }
+  })();
+  try { await refresh._running; } finally { refresh._running = null; }
+}
+
+function renderJob(){
+  const j = S.job, r = j.result;
+  $("dot").className = "dot " + (S.busy ? "run" : r ? (r.ok ? "ok" : "bad") : "");
+  $("jobTitle").textContent = S.busy ? `正在执行：${jobName(j.name)}…` : r ? `上次：${jobName(j.name)}（${j.finished}）` : "空闲";
+  $("jobMsg").textContent = r ? r.message : "";
+  document.querySelectorAll('button[onclick^="run("],button[onclick="runRec()"]')
+    .forEach(b=>b.disabled=S.busy || S.config.connection_mode==='web');
+  $("webModeNote").hidden = S.config.connection_mode!=='web';
+  if (r && r.data && j.name==="dump" && !S.busy) renderDump(r.data);
+}
+const jobName = n => ({order:"下单",coupons:"领券",recommend:"抓取推荐",accounts:"检查账号",open_app:"打开 App",dump:"读取屏幕"})[n]||n||"";
+
+function renderHistory(){
+  const h = S.history;
+  $("history").innerHTML = h.length ? `<table><tr><th>时间</th><th>吃什么</th><th>价格</th><th>结果</th></tr>${
+    h.slice(0,12).map(x=>`<tr><td class="muted">${esc(x.date.slice(5))} ${esc(x.time)}</td><td>${esc(x.meal)} <span class="badge">${PN[x.platform]||""}</span></td><td>${x.price!=null?"¥"+x.price:"-"}</td><td>${esc(STATUS[x.status]||x.status)}</td></tr>`).join("")}</table>`
+    : `<div class="empty">还没有记录</div>`;
+}
+function renderLogs(){
+  const el=$("logs"), atBottom = el.scrollTop+el.clientHeight>=el.scrollHeight-20;
+  el.textContent = S.logs.join("\n") || "暂无日志";
+  if (atBottom) el.scrollTop = el.scrollHeight;
+}
+
+async function run(name, body){
+  const r = await api("/api/run/"+name, body||{});
+  toast(r.ok ? `已开始：${jobName(name)}` : r.message);
+  refresh();
+}
+
+/* ---------- 推荐 ---------- */
+function fillRecForm(){
+  const rc = S.config.recommend;
+  $("kw").value = rc.keywords.join("，");
+  $("rp_meituan").checked = rc.platforms.includes("meituan");
+  $("rp_eleme").checked = rc.platforms.includes("eleme");
+  $("rdeep").checked = !!rc.deep;
+}
+async function runRec(){
+  const rc = {...S.config.recommend, keywords: split($("kw").value),
+    platforms: ["meituan","eleme"].filter(p=>$("rp_"+p).checked), deep: $("rdeep").checked};
+  if (!rc.keywords.length || !rc.platforms.length) return toast("至少填一个关键词、选一个平台");
+  await api("/api/config", {recommend: rc});
+  run("recommend", rc);
+}
+const picked = {};
+function renderRecs(){
+  const R = S.recs;
+  if (!R || !R.shops){ $("recList").innerHTML = `<div class="card empty">还没有推荐。填好关键词点「开始抓取」，或在设置里定时自动抓。</div>`; $("recMeta").textContent=""; return; }
+  $("recMeta").textContent = `更新于 ${R.time} · 关键词：${R.keywords.join("、")} · 共 ${R.shops.length} 家` +
+    (R.errors?.length ? ` · 部分抓取失败：${R.errors.join("；")}` : "");
+  $("recList").innerHTML = R.shops.map((s,i)=>{
+    const key = s.platform+"|"+s.shop; picked[key] = picked[key] || new Set();
+    for (const dish of picked[key]) if (!s.safe.includes(dish)) picked[key].delete(dish);
+    const best = s.deals.length ? s.deals[s.deals.length-1] : null;
+    return `<div class="shop ${s.shop_ok && s.safe.length ? "" : "dim"}">
+      <div class="top"><span class="name">${esc(s.shop)}</span>
+        <span class="badge">${PN[s.platform]}</span>
+        ${s.halal?'<span class="badge ok">清真</span>':""}
+        ${best?`<span class="deal">满${best[0]}减${best[1]}</span>`:""}
+        ${s.in_list?'<span class="badge ok">已在清单</span>':""}
+        ${!s.shop_ok?`<span class="badge" style="color:var(--bad)">店名疑似含猪：${esc(s.shop_reason)}</span>`:""}
+      </div>
+      ${s.safe.length ? `<div>${s.safe.map(d=>`<span class="chip ${picked[key].has(d)?"sel":""}" onclick="togglePick(${i},this)" data-d="${esc(d)}">${picked[key].has(d)?"✓ ":""}${esc(d)}</span>`).join("")}</div>`
+        : `<div class="muted">${s.shop_ok ? "搜索页没显示菜品，可勾选「进店读完整菜单」再抓" : ""}</div>`}
+      ${s.blocked.length ? `<details><summary>已拦下 ${s.blocked.length} 道疑似含猪的菜</summary>${s.blocked.map(b=>`<span class="chip bad" title="${esc(b.reason)}">${esc(b.dish)}</span>`).join("")}</details>`:""}
+      ${s.shop_ok && s.safe.length ? `<div class="row" style="margin-top:8px"><button class="btn small" onclick="addFromRec(${i})">把勾选的菜加入安全清单</button></div>`:""}
+    </div>`;}).join("");
+}
+function togglePick(i, el){
+  const s = S.recs.shops[i], key = s.platform+"|"+s.shop, d = el.dataset.d;
+  picked[key].has(d) ? picked[key].delete(d) : picked[key].add(d);
+  renderRecs();
+}
+async function addFromRec(i){
+  const s = S.recs.shops[i], set = picked[s.platform+"|"+s.shop];
+  if (!s.shop_ok) return toast("该店铺未通过规则检查，请重新选择");
+  const selected = [...set].filter(d=>s.safe.includes(d));
+  if (!selected.length) return toast("先点选要加入的菜");
+  if (!confirm(`确认这些菜不含猪肉？\n\n${[...set].join("\n")}\n\n规则判断只是辅助，最好看一眼商家详情或问一下商家。`)) return;
+  const meals = JSON.parse(JSON.stringify(S.config.meals));
+  const ex = meals.find(m=>m.platform===s.platform && m.shop===s.shop);
+  if (ex) ex.dishes = [...new Set([...ex.dishes, ...selected])];
+  else meals.push({name: s.shop, platform: s.platform, shop: s.shop, dishes:selected, enabled:true});
+  const r = await api("/api/meals", {meals});
+  set.clear(); toast("已加入安全清单");
+  await refresh(); editingMeals = JSON.parse(JSON.stringify(S.config.meals)); renderMeals();
+}
+
+/* ---------- 安全清单 ---------- */
+function renderMeals(){
+  $("mealRows").innerHTML = editingMeals.map((m,i)=>`<tr>
+    <td><input type="checkbox" ${m.enabled!==false?"checked":""} onchange="editingMeals[${i}].enabled=this.checked"></td>
+    <td><input type="text" value="${esc(m.name)}" onchange="editingMeals[${i}].name=this.value"></td>
+    <td><select onchange="editingMeals[${i}].platform=this.value">${Object.keys(PN).map(p=>`<option value="${p}" ${m.platform===p?"selected":""}>${PN[p]}</option>`).join("")}</select></td>
+    <td><input type="text" value="${esc(m.shop)}" onchange="editingMeals[${i}].shop=this.value"></td>
+    <td><input type="text" value="${esc(m.dishes.join("，"))}" onchange="editingMeals[${i}].dishes=split(this.value)"></td>
+    <td><input type="text" value="${esc(m.address||"")}" placeholder="默认地址" onchange="editingMeals[${i}].address=this.value.trim()"></td>
+    <td><button class="btn small" onclick="editingMeals.splice(${i},1);renderMeals()">删除</button></td></tr>`).join("")
+    || `<tr><td colspan="7" class="empty">清单是空的</td></tr>`;
+}
+function addMeal(){ editingMeals.push({name:"",platform:"meituan",shop:"",dishes:[],enabled:true}); renderMeals(); }
+async function saveMeals(){
+  const incomplete = editingMeals.findIndex(m=>!m.name.trim() || !m.shop.trim() || !m.dishes.length);
+  if (incomplete!==-1) return toast(`第 ${incomplete+1} 行未填完整，请补齐或删除该行`);
+  const meals = editingMeals.map(m=>({...m, name:m.name.trim(), shop:m.shop.trim()}));
+  const r = await api("/api/meals", {meals});
+  $("mealWarn").innerHTML = r.warnings.length ? `<div class="warnbox">⚠️ 这些菜被规则判定可疑，下单时会自动跳过：<br>${r.warnings.map(esc).join("<br>")}</div>` : "";
+  toast("已保存"); await refresh(); editingMeals = JSON.parse(JSON.stringify(S.config.meals)); renderMeals();
+}
+async function testGuard(){
+  const r = await api("/api/guard/check", {names: split($("testNames").value)});
+  $("testOut").innerHTML = r.map(x=>`<span class="chip ${x.ok?"sel":"bad"}" title="${esc(x.reason)}">${x.ok?"✅":"🚫"} ${esc(x.name)}${x.ok?"":" · "+esc(x.reason)}</span>`).join("");
+}
+
+/* ---------- 账号 ---------- */
+function renderAccounts(){
+  renderWebAuth();
+  $("androidAccounts").hidden = S.config.connection_mode!=='android';
+  const data = S.accounts || {};
+  $("acctCards").innerHTML = ["meituan","eleme"].map(p=>{
+    const a = data[p];
+    const st = !a ? '<span class="badge">未检查</span>' : a.installed===null ? '<span class="badge">未知</span>' : !a.installed ? '<span class="badge" style="color:var(--bad)">未安装</span>'
+      : a.logged_in ? '<span class="badge ok">已登录</span>' : a.logged_in===false ? '<span class="badge warn">未登录</span>' : '<span class="badge">未知</span>';
+    return `<div class="shop"><div class="top"><span class="name">${S.platforms[p]}</span>${st}</div>
+      <div class="muted">${esc(a ? a.message : "点「检查登录状态」")}</div>
+      <div class="row" style="margin-top:10px"><button class="btn small" onclick="run('open_app',{platform:'${p}'})">在设备上打开</button></div></div>`;
+  }).join("");
+}
+
+function clearLoginInputs(){
+  $("authPhone").value=''; $("authCode").value='';
+}
+function renderWebAuth(){
+  const a=S?.auth;
+  $("serverWarning").hidden = !!a?.csrf;
+  $("webAuthStatus").textContent = !a ? '登录接口尚未加载，请关闭旧窗口并重新启动软件' : a.connected ? '✓ 美团已授权 · 仅本次运行' : '美团尚未授权给本软件';
+  $("webAuthStatus").style.color = a?.connected ? 'var(--ok)' : 'var(--ink)';
+  $("phoneLoginForm").hidden = !a?.csrf || !!a?.connected;
+  $("sendLoginSmsButton").disabled = authBusy || !a || a.retry_after>0;
+  $("sendLoginSmsButton").textContent = a?.retry_after>0 ? `请等 ${a.retry_after} 秒` : '获取验证码';
+  $("verifyLoginSmsButton").disabled = authBusy || !a?.csrf;
+  $("checkWebAuthButton").disabled = authBusy || !a?.csrf;
+  $("clearWebAuthButton").disabled = authBusy || !a?.csrf;
+  $("authSecurity").hidden = !a?.security_required;
+  if (a?.security_required) {
+    const source='/api/auth/security-qr.png?v='+authQrVersion;
+    if ($("authSecurityQr").getAttribute('src')!==source) $("authSecurityQr").setAttribute('src',source);
+  } else $("authSecurityQr").removeAttribute('src');
+}
+function loginMessage(message, failed=false){
+  $("authMessage").textContent=message;
+  $("authMessage").style.color=failed ? 'var(--bad)' : 'var(--ink)';
+  toast(message);
+}
+async function loginAction(action){
+  if (authBusy) return;
+  authBusy=true; renderWebAuth();
+  try {
+    const r=await action();
+    loginMessage(r.message);
+  } catch (error) {
+    loginMessage(error.message || '授权操作失败，请重试',true);
+  } finally {
+    if (refresh._running) await refresh();
+    await refresh(); authBusy=false; renderWebAuth();
+  }
+}
+async function sendLoginSms(){
+  if (!/^1[3-9]\d{9}$/.test($("authPhone").value)) return loginMessage('请填写完整的 11 位手机号',true);
+  if (!$("authConsent").checked) return loginMessage('请先阅读协议并勾选本次登录授权',true);
+  $("authCode").value=''; authQrVersion++;
+  await loginAction(()=>api('/api/auth/meituan/send-sms',{phone:$("authPhone").value,terms_accepted:true}));
+}
+async function verifyLoginSms(){
+  if (!S?.auth?.pending) return loginMessage('请先填写手机号并点击“获取验证码”，收到短信后再验证',true);
+  if (!$("authConsent").checked) return loginMessage('请先勾选本次登录授权，或清除登录请求',true);
+  if (!/^\d{4,8}$/.test($("authCode").value)) return loginMessage('请输入收到的短信验证码',true);
+  await loginAction(async()=>{
+    try {
+      const r=await api('/api/auth/meituan/verify',{phone:$("authPhone").value,sms_code:$("authCode").value});
+      clearLoginInputs(); $("authConsent").checked=false;
+      return r;
+    } finally { $("authCode").value=''; }
+  });
+}
+async function checkWebAuth(){ await loginAction(()=>api('/api/auth/check',{})); }
+async function clearWebAuth(){
+  await loginAction(async()=>{
+    const r=await api('/api/auth/logout',{});
+    clearLoginInputs(); $("authConsent").checked=false;
+    return r;
+  });
+}
+
+/* ---------- 设置 ---------- */
+function fillSettings(){
+  const c = S.config, g = c.guard, s = c.schedule;
+  $("s_connection").value = c.connection_mode||'web';
+  $("s_device").value = c.device||""; const bk = (c.bark||{}).key||""; $("s_bark").value = bk.includes("在这里") ? "" : bk; $("s_bark").placeholder = "打开 iPhone 上的 Bark App 复制";
+  $("s_dry").checked = !!c.dry_run; $("s_time").value = c.order.delivery_time;
+  $("s_max").value = c.order.max_price; $("s_rep").value = c.order.avoid_repeat_days; $("s_note").value = c.order.note; $("s_addr").value = c.order.address||"";
+  $("c_meituan").checked = c.claim_coupons.includes("meituan"); $("c_eleme").checked = c.claim_coupons.includes("eleme");
+  $("t_on").checked = !!s.enabled; $("t_rec").value = s.recommend_time||""; $("t_cou").value = s.coupons_time||""; $("t_ord").value = s.order_time||"";
+  $("t_days").innerHTML = [1,2,3,4,5,6,7].map(d=>`<label class="switch"><input type="checkbox" class="wd" value="${d}" ${s.weekdays.includes(d)?"checked":""}> 周${"一二三四五六日"[d-1]}</label>`).join("");
+  $("g_block").value = g.extra_block.join("，"); $("g_allow").value = g.allow.join("，"); $("g_ignore").value = g.scan_ignore.join("，");
+}
+async function saveSettings(){
+  const c = S.config;
+  if (!$("s_max").value.trim() || !$("s_rep").value.trim()) { toast("请填写预算上限和不重复天数"); return false; }
+  await api("/api/config", {
+    connection_mode: $("s_connection").value,
+    device: $("s_device").value.trim(),
+    bark: {...(c.bark||{server:"https://api.day.app"}), key: $("s_bark").value.trim()},
+    dry_run: $("s_dry").checked,
+    claim_coupons: ["meituan","eleme"].filter(p=>$("c_"+p).checked),
+    order: {...c.order, delivery_time: $("s_time").value.trim(), max_price: +$("s_max").value, avoid_repeat_days: +$("s_rep").value, note: $("s_note").value, address: $("s_addr").value.trim()},
+    guard: {extra_block: split($("g_block").value), allow: split($("g_allow").value), scan_ignore: split($("g_ignore").value)},
+    schedule: {enabled: $("t_on").checked, weekdays: [...document.querySelectorAll(".wd:checked")].map(x=>+x.value),
+               recommend_time: $("t_rec").value, coupons_time: $("t_cou").value, order_time: $("t_ord").value},
+  });
+  toast("设置已保存"); await refresh(); return true;
+}
+async function testPush(){ if (!await saveSettings()) return; const r = await api("/api/test_push", {}); toast(r.message); }
+async function pairBrowserNotification(){
+  const button=$("pairNotification");button.disabled=true;
+  try{const result=await api('/api/extension/pairing',{});if(!result.ok)throw Error(result.message||'生成连接码失败');$("pairNotificationToken").value=result.token;$("pairNotificationBox").hidden=false;$("pairNotificationMessage").textContent=result.bark_configured?'连接码已生成。只保存到你安装的神器扩展，不要粘贴到聊天或GitHub。':'连接码已生成，但Bark尚未有效配置。请先在本机设置中填写真实Bark key，再测试推送。';}
+  catch(error){$("pairNotificationMessage").textContent=error.message;}
+  finally{button.disabled=false;}
+}
+async function copyBrowserNotificationCode(){
+  try{await navigator.clipboard.writeText($("pairNotificationToken").value);$("pairNotificationMessage").textContent='已复制，请粘贴到神器扩展的通知设置。';}
+  catch{$("pairNotificationToken").type='text';$("pairNotificationToken").select();$("pairNotificationMessage").textContent='请手动复制选中的连接码。';}
+}
+function renderDump(rows){
+  $("dumpOut").innerHTML = `<table><tr><th>文字</th><th>描述</th><th>控件 id</th></tr>${rows.map(r=>`<tr><td>${esc(r.text)}</td><td class="muted">${esc(r.desc)}</td><td class="muted">${esc(r.id)}</td></tr>`).join("")}</table>`;
+}
+
+refresh(true);
+</script>
+</body>
+</html>

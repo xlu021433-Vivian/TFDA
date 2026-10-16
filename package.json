@@ -1,0 +1,8 @@
+{
+  "name":"shenqi-waimai",
+  "version":"0.3.0",
+  "private":true,
+  "description":"Official-page personal meal assistant, coupon checks, local scheduling and unpaid-order notifications",
+  "scripts":{"test:browser":"node --test waimai-helper/tests/browser/*.test.cjs"},
+  "devDependencies":{"jsdom":"26.1.0"}
+}

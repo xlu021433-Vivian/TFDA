@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "神器 · 网页点餐助手",
+  "version": "0.3.0",
+  "description": "在本人登录的美团网页中随机选餐、排除猪肉、免费膨胀并用券；核对后单次创建待支付订单，由本人付款。",
+  "permissions": ["activeTab", "scripting", "storage", "alarms", "notifications"],
+  "host_permissions": ["https://h5.waimai.meituan.com/*", "http://127.0.0.1:8765/*"],
+  "content_scripts": [{"matches":["https://h5.waimai.meituan.com/*"],"js":["guard-data.js","policy.js","schedule.js","watch.js"],"run_at":"document_idle"}],
+  "options_page":"options.html",
+  "background": {"service_worker":"state.js"},
+  "action": {"default_popup": "popup.html", "default_title": "打开网页点餐助手"}
+}
