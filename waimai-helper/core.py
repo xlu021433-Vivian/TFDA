@@ -112,7 +112,7 @@ def validate_config(cfg):
 
 def load_config():
     with CONFIG_LOCK:
-        cfg = yaml.safe_load(CONFIG.read_text("utf-8"))
+        cfg = yaml.safe_load(CONFIG.read_text("utf-8")) if CONFIG.exists() else {}
     if cfg is None:
         cfg = {}
     if not isinstance(cfg, dict):

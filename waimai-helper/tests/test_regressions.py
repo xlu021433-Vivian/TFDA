@@ -24,7 +24,7 @@ class RegressionTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.directory = Path(self.temp.name)
         self.config_path = self.directory / 'config.yaml'
-        self.config_path.write_text(core.CONFIG.read_text('utf-8'), 'utf-8')
+        self.config_path.write_text(json.dumps(core.DEFAULT_CONFIG, ensure_ascii=False), 'utf-8')
         for name, path in [('CONFIG', self.config_path), ('HISTORY', self.directory / 'history.json'),
                            ('RECS', self.directory / 'recommendations.json')]:
             p = patch.object(core, name, path)
@@ -37,6 +37,14 @@ class RegressionTests(unittest.TestCase):
         reader = engine.Engine.__new__(engine.Engine)
         reader.texts = lambda: texts
         return reader._read_price()
+
+    def test_fresh_checkout_uses_defaults_without_writing_a_private_config(self):
+        self.config_path.unlink()
+        cfg = core.load_config()
+        self.assertEqual(cfg['connection_mode'], 'web')
+        self.assertFalse(cfg['schedule']['enabled'])
+        self.assertEqual(cfg['bark']['key'], '')
+        self.assertFalse(self.config_path.exists())
 
     def test_price_ignores_quantity_before_currency(self):
         self.assertEqual(self.price(['合计 共2件 ¥35.50']), 35.5)
