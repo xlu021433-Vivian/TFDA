@@ -14,6 +14,12 @@
 
 ## 使用
 
+**Windows 用户直接下载 [免装 Python 的便携包](https://github.com/xlu021433-Vivian/TFDA/releases/latest/download/shenqi-waimai-windows-x64.zip)**，解压后阅读“先看这里.txt”。双击 `INSTALL-EXTENSION.bat` 完成浏览器加载扩展，再双击 `START.bat` 启动助手。无需命令行或改代码；扩展需要手动加载一次，美团登录和 Bark 通知需要在本机配置。
+
+这是可安装的测试版，完整真实账号定时下单流程仍待验证。仅支持 Windows x64 搭配 Chrome / Edge，iPhone 用于接收通知及本人付款。首次启用定时请在电脑旁观察。
+
+以下为从源码运行的方法：
+
 1. 安装 Python 3.12+，执行 `pip install -r waimai-helper/requirements.txt`。
 2. 执行 `python waimai-helper/build_browser_extension.py` 生成浏览器扩展压缩包。
 3. Chrome/Edge扩展管理页加载 `waimai-helper/browser-extension` 文件夹。Codex内置浏览器不能加载此扩展。

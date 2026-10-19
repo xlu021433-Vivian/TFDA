@@ -1,6 +1,7 @@
 # Personal runtime data and credentials must stay on this computer.
 /.rea-runtime/
 /.tool-cache/
+/dist/
 /REA/
 /分析材料/
 /Pets/
