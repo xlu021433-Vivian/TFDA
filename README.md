@@ -14,7 +14,9 @@
 
 ## 使用
 
-**Windows 用户直接下载 [免装 Python 的便携包](https://github.com/xlu021433-Vivian/TFDA/releases/latest/download/shenqi-waimai-windows-x64.zip)**，解压后阅读“先看这里.txt”。双击 `INSTALL-EXTENSION.bat` 完成浏览器加载扩展，再双击 `START.bat` 启动助手。无需命令行或改代码；扩展需要手动加载一次，美团登录和 Bark 通知需要在本机配置。
+**Windows 用户直接下载 [EXE 安装程序](https://github.com/xlu021433-Vivian/TFDA/releases/latest/download/Shenqi-Waimai-Setup.exe)**，双击选择安装位置，安装后可创建桌面“神器外卖助手”快捷方式。无需安装 Python、命令行或改代码。安装完成后点击“加载浏览器扩展”，按提示在 Chrome / Edge 加载一次扩展，再启动助手、登录美团并确认地址；Bark 通知可稍后在本机配置。
+
+需要便携使用时，可下载 [0.3.0 便携 ZIP](https://github.com/xlu021433-Vivian/TFDA/releases/download/v0.3.0/shenqi-waimai-windows-x64.zip)，解压后进入 `Shenqi-Waimai` 文件夹阅读“先看这里.txt”，双击 `START.bat` 启动；该 ZIP 本身没有 EXE 安装程序。
 
 这是可安装的测试版，完整真实账号定时下单流程仍待验证。仅支持 Windows x64 搭配 Chrome / Edge，iPhone 用于接收通知及本人付款。首次启用定时请在电脑旁观察。
 
