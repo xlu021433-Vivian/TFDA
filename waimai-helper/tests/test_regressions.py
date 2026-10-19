@@ -24,7 +24,10 @@ class RegressionTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.directory = Path(self.temp.name)
         self.config_path = self.directory / 'config.yaml'
-        self.config_path.write_text(json.dumps(core.DEFAULT_CONFIG, ensure_ascii=False), 'utf-8')
+        fixture = copy.deepcopy(core.DEFAULT_CONFIG)
+        fixture['meals'] = [{'name': '测试牛肉饭', 'shop': '测试餐厅',
+                             'platform': 'meituan', 'dishes': ['牛肉饭'], 'enabled': True}]
+        self.config_path.write_text(json.dumps(fixture, ensure_ascii=False), 'utf-8')
         for name, path in [('CONFIG', self.config_path), ('HISTORY', self.directory / 'history.json'),
                            ('RECS', self.directory / 'recommendations.json')]:
             p = patch.object(core, name, path)
