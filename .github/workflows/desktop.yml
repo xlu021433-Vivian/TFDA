@@ -1,0 +1,37 @@
+name: Desktop app
+on:
+  push:
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+  pull_request:
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+permissions:
+  contents: read
+jobs:
+  embedded-browser:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Fetch pinned Microsoft SDK
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .tool-cache/webview2 -Force | Out-Null
+          Invoke-WebRequest https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/1.0.4258.31/microsoft.web.webview2.1.0.4258.31.nupkg -OutFile .tool-cache/webview2/microsoft.web.webview2.1.0.4258.31.nupkg
+      - run: python desktop/build.py
+      - run: node --test desktop/runtime.test.cjs
+      - name: Real embedded browser with isolated merchant fixtures
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $profile = Join-Path $env:RUNNER_TEMP ('shenqi-'+[guid]::NewGuid())
+          $report = Join-Path $env:RUNNER_TEMP 'shenqi-result.json'
+          $exe = (Resolve-Path dist/desktop-0.4.0/Shenqi-Desktop.exe).Path
+          $job = Start-Process $exe -ArgumentList @('--self-test','--data-dir',('"'+$profile+'"'),'--report',('"'+$report+'"')) -WindowStyle Hidden -PassThru
+          if (-not $job.WaitForExit(120000)) { $job.Kill(); throw 'Desktop verification timeout' }
+          if (Test-Path $report) { Get-Content $report }
+          if ($job.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Desktop verification failed' }

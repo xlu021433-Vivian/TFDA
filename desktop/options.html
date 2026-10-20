@@ -1,0 +1,21 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; frame-src 'none'; base-uri 'none'; form-action 'none'"><title>神器 · 今天这一餐</title><link rel="stylesheet" href="desktop.css"></head><body>
+<header><div class="brand">神器<span>桌面点餐助手 · 0.4 测试版</span></div><h1>今天，想吃点什么？</h1><p>选餐、用券，到待支付。付款交给你。</p></header>
+<div class="connection"><span id="dot" class="dot"></span><div><b id="connection">正在启动内置网页…</b><small id="pageStatus">无需安装浏览器扩展</small></div><button id="reload" class="quiet">重试</button></div>
+<nav aria-label="助手功能"><button class="active" data-tab="meal">点这一餐</button><button data-tab="schedule">定时</button><button data-tab="notice">通知</button></nav>
+<main>
+<section id="meal" class="tab active">
+<div id="flow" class="flow"><b id="flowTitle">先在右侧登录美团</b><p id="flowDetail">登录、验证码和地址选择都在官方页面完成。确认后勾选本次授权，就可以开始。</p></div>
+<div id="order" class="order" hidden><span>已识别真实待支付订单</span><b id="orderId"></b><p id="orderAmount"></p><button id="openOrder" class="wide">查看官方订单</button></div>
+<div class="ticket"><div><span>本餐预算 · 含包装配送</span><b id="budgetSummary">¥25<span>.00</span></b></div><div class="rules">不吃猪肉 · 必须用券<br>可免费膨胀时尝试一张</div></div>
+<div id="requestForm"><label for="request">今天想吃什么</label><textarea id="request" maxlength="160" placeholder="例如：我想喝奶茶，一杯&#10;留空就随机挑一份正餐"></textarea>
+<div class="two"><label>券后预算（元）<input id="budget" type="number" min="0.01" max="1000" step="0.01" value="25"></label><button id="home">打开美团首页</button></div>
+<label class="consent"><input id="mealConsent" type="checkbox"><span>我已在右侧确认账号与配送地址，允许本次按预算随机选餐、实际用券后创建一笔待支付订单。菜名无法保证全部配料，付款由我完成。</span></label>
+<button id="startMeal" class="primary wide" disabled>帮我点这一餐</button></div><button id="stop" class="wide secondary">立即暂停后续操作</button>
+
+
+<details id="recovery"><summary>核对上次提交结果</summary><p>只在官方订单中确认上次结果后解除防重记录，避免重复下单。</p><label class="consent"><input id="reviewed" type="checkbox"><span>我已核对官方订单，确认可以开始下一餐</span></label><button id="clear">解除防重记录</button></details>
+</section>
+<section id="schedule" class="tab"><h2>工作日，到点选好。</h2><p>北京时间执行。电脑和本程序需保持运行；超过时间窗口10分钟会跳过当天。</p><label>执行时间<input id="time" type="time" value="11:00"></label><div class="days" aria-label="每周执行日期"><label><input name="day" value="1" type="checkbox" checked>一</label><label><input name="day" value="2" type="checkbox" checked>二</label><label><input name="day" value="3" type="checkbox" checked>三</label><label><input name="day" value="4" type="checkbox" checked>四</label><label><input name="day" value="5" type="checkbox" checked>五</label><label><input name="day" value="6" type="checkbox">六</label><label><input name="day" value="7" type="checkbox">日</label></div><label>每餐券后预算（元）<input id="scheduleBudget" type="number" min="0.01" max="1000" step="0.01" value="25"></label><label>偏好（留空随机正餐）<input id="scheduleRequest" maxlength="160" placeholder="例如：牛肉饭"></label><label class="consent"><input id="scheduleConsent" type="checkbox"><span>我已核对当前美团配送地址，授权按上述时间和预算、不限定商家、排除猪肉、必须用券，使用完整默认规格并创建待支付订单，由我付款。</span></label><label class="switch"><input id="enabled" type="checkbox"><span>启用定时点餐</span></label><button id="saveSchedule" class="primary wide">保存定时设置</button><p id="scheduleState" class="hint">首次保持关闭，确认后再启用。</p></section>
+<section id="notice" class="tab"><h2>选好了，提醒你付款。</h2><p>电脑通知随程序运行。iPhone Bark 可稍后配置；密钥只加密保存在这台电脑。</p><label>Bark key<input id="barkKey" type="password" autocomplete="off" placeholder="在这里粘贴自己的 Bark key"></label><button id="saveBark" class="primary wide">保存到本机</button><button id="testNotice" class="wide">发送测试通知</button><p id="barkState" class="hint">未配置 iPhone 推送</p><div class="flow"><b>登录不会从其他浏览器迁移</b><p>请在右侧美团页亲自登录。账号与登录状态由内置浏览器保存在本机，不上传 GitHub。</p></div><button id="diagnostics" class="wide">检查连接</button><button id="shortcut" class="wide">添加桌面快捷方式</button><p id="diagnosticResult" class="hint"></p></section>
+<p id="message" role="status" aria-live="polite"></p><footer>真实账号全流程仍待验证，首次请在旁观察。<br>无券、超预算、状态不明时暂停，不自动付款。</footer>
+</main><script src="guard-data.js"></script><script src="policy.js"></script><script src="schedule.js"></script><script src="worker.js"></script><script src="desktop.js"></script></body></html>

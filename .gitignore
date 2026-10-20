@@ -3,6 +3,7 @@
 /.tool-cache/
 /dist/
 /shenqi/
+/*.exe
 /REA/
 /分析材料/
 /Pets/

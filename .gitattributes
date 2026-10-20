@@ -1,1 +1,2 @@
 installer/launchers/*.bat text eol=crlf
+desktop/** text eol=lf
