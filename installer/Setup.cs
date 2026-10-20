@@ -12,8 +12,8 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("神器外卖助手安装程序")]
-[assembly: AssemblyVersion("0.3.1.0")]
-[assembly: AssemblyFileVersion("0.3.1.0")]
+[assembly: AssemblyVersion("0.3.2.0")]
+[assembly: AssemblyFileVersion("0.3.2.0")]
 
 internal static class Package
 {
@@ -72,7 +72,62 @@ internal static class Package
                     throw new IOException("文件校验失败：" + manifest[i]["path"]);
             if (i % 40 == 0) progress(85 + i * 15 / manifest.Count);
         }
+        UpdateLaunchers(destination, false);
         progress(100);
+    }
+
+    internal static void UpdateLaunchers(string destination, bool repair)
+    {
+        destination = Path.GetFullPath(destination);
+        var updates = new Dictionary<string, byte[]>();
+        foreach (string name in new[] { "START.bat", "INSTALL-EXTENSION.bat", "INSTALL-HELP.txt" })
+        {
+            using (var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("Shenqi." + name))
+            using (var data = new MemoryStream())
+            {
+                if (resource == null) throw new IOException("启动入口资源缺失。");
+                resource.CopyTo(data);
+                updates[name] = data.ToArray();
+            }
+        }
+        if (!File.Exists(Path.Combine(destination, "app", "app.py")) ||
+            !File.Exists(Path.Combine(destination, "runtime", "python.exe")) ||
+            !File.Exists(Path.Combine(destination, "browser-extension", "manifest.json")))
+            throw new IOException("所选目录不是完整的神器安装目录。");
+        var serializer = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
+        string manifestPath = Path.Combine(destination, "files.sha256.json");
+        var manifest = serializer.Deserialize<List<Dictionary<string, string>>>(File.ReadAllText(manifestPath, Encoding.UTF8));
+        // Repair only known public launchers; never overwrite user-edited scripts or settings.
+        if (repair)
+        {
+            using (var payload = Assembly.GetExecutingAssembly().GetManifestResourceStream("Shenqi.Payload"))
+            {
+                if (Hash(payload) != Digest) throw new IOException("安装包校验失败。");
+                payload.Position = 0;
+                using (var zip = new ZipArchive(payload, ZipArchiveMode.Read))
+                    foreach (var update in updates)
+                    {
+                        string path = Path.Combine(destination, update.Key);
+                        if (!File.Exists(path)) continue;
+                        string current;
+                        using (var file = File.OpenRead(path)) current = Hash(file);
+                        using (var fresh = new MemoryStream(update.Value))
+                            if (current == Hash(fresh)) continue;
+                        var original = zip.GetEntry("Shenqi-Waimai/" + update.Key);
+                        if (original == null) throw new IOException("启动入口已被修改，未覆盖：" + update.Key);
+                        using (var old = original.Open())
+                            if (current != Hash(old)) throw new IOException("启动入口已被修改，未覆盖：" + update.Key);
+                    }
+            }
+        }
+        foreach (var update in updates)
+        {
+            File.WriteAllBytes(Path.Combine(destination, update.Key), update.Value);
+            var entry = manifest.Find(item => item["path"] == update.Key);
+            if (entry == null) { entry = new Dictionary<string, string> { { "path", update.Key } }; manifest.Add(entry); }
+            using (var stream = new MemoryStream(update.Value)) entry["sha256"] = Hash(stream);
+        }
+        File.WriteAllText(manifestPath, serializer.Serialize(manifest), new UTF8Encoding(false));
     }
 
     internal static void Shortcut(string destination, string directory)
@@ -125,7 +180,7 @@ internal sealed class SetupForm : Form
         LabelText("已包含 Python 和运行库，无需安装开发环境。\n浏览器扩展需手动加载一次，美团登录与配送地址由你确认。", 32, 136, 616, 56, 10, Muted, false);
         LabelText("安装位置（请选择空文件夹）", 32, 208, 616, 28, 10, Ink, false);
         location.SetBounds(32, 244, 504, 32);
-        location.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Shenqi-Waimai-0.3.1");
+        location.Text = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Shenqi-Waimai-0.3.2");
         location.AccessibleName = "安装位置";
         Controls.Add(location);
         browse.SetBounds(552, 240, 96, 40);
@@ -219,6 +274,11 @@ internal static class Program
     {
         try
         {
+            if (args.Length == 2 && args[0] == "--repair-launchers")
+            {
+                Package.UpdateLaunchers(args[1], true);
+                return 0;
+            }
             if (args.Length == 2 && args[0] == "--verify-extract")
             {
                 Package.Extract(args[1], delegate { });

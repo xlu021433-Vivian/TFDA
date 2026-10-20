@@ -1,0 +1,30 @@
+name: Windows package
+on:
+  push:
+    paths: ['installer/**', '.github/workflows/windows-package.yml']
+  pull_request:
+    paths: ['installer/**', '.github/workflows/windows-package.yml']
+permissions:
+  contents: read
+jobs:
+  launchers:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the pinned public runtime payload
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist/windows-0.3.0 -Force | Out-Null
+          Invoke-WebRequest -Uri https://github.com/xlu021433-Vivian/TFDA/releases/download/v0.3.0/shenqi-waimai-windows-x64.zip -OutFile dist/windows-0.3.0/shenqi-waimai-windows-x64.zip
+      - name: Build installer with CRLF launchers
+        shell: powershell
+        run: ./installer/build.ps1
+      - name: Verify extraction and execute the actual CMD entry points
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP 'Shenqi-launcher-check'
+          $setup = (Resolve-Path dist/windows-0.3.2/Shenqi-Waimai-Setup.exe).Path
+          $process = Start-Process -FilePath $setup -ArgumentList @('--verify-extract', ('"' + $target + '"')) -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Installer extraction failed' }
+          & "$target/runtime/python.exe" -E -s -B -X utf8 installer/test_launchers.py $target --setup $setup
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged launcher regression failed' }
