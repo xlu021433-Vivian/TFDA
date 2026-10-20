@@ -42,7 +42,7 @@
     $('order').hidden=!currentOrder;if(currentOrder){$('orderId').textContent=currentOrder.orderId;$('orderAmount').textContent=ShenqiPolicy.money(currentOrder.total)+' · '+currentOrder.date;}
     $('recovery').hidden=!state.submissionAttempt;
     $('scheduleState').textContent=state.schedule?.enabled?'已启用 · 北京时间 '+state.schedule.time+' · 券后含配送 '+ShenqiPolicy.money(state.schedule.budget):'当前已暂停，确认后再启用。';
-    $('barkState').textContent=nativeStatus.barkConfigured?'已在本机加密保存 Bark key。'+(nativeStatus.lastBark===true?'最近一次推送已送达。':nativeStatus.lastBark===false?'最近一次推送未成功，请检查 key 和网络。':'请发送一次测试通知。'):'未配置 iPhone 推送，可稍后设置。电脑通知随程序运行。';
+    $('barkState').textContent=nativeStatus.barkConfigured?'已在本机加密保存 Bark key。'+(nativeStatus.lastBark===true?'最近一次推送已被 Bark 服务接受，请在手机确认。':nativeStatus.lastBark===false?'最近一次推送未成功，请检查 key 和网络。':'请发送一次测试通知。'):'未配置 iPhone 推送，可稍后设置。电脑通知随程序运行。';
     return state;
   }
   native.addEventListener('message',event=>{
@@ -70,7 +70,7 @@
   $('clear').onclick=()=>action(async()=>{if(!$('reviewed').checked)throw Error('请先核对官方订单');await message({type:'clear',reviewed:true});$('reviewed').checked=false;tell('已解除防重记录，请重新核对后开始下一餐。');});
   $('openOrder').onclick=()=>action(()=>rpc('navigate',{url:state.lastOrder?.url}));
   $('saveBark').onclick=()=>action(async()=>{const key=$('barkKey').value.trim();if(!/^[A-Za-z0-9_-]{5,256}$/.test(key))throw Error('请输入真实的 Bark key');await rpc('save_bark',{key});$('barkKey').value='';tell('Bark key 已加密保存在本机。');});
-  $('testNotice').onclick=()=>action(async()=>{const result=await rpc('notify',{id:'shenqi-test',options:{title:'神器 · 通知测试',message:'桌面助手通知测试，没有创建订单。'}});tell(result.bark?'iPhone Bark 已送达。':result.barkConfigured?'电脑通知已发出，Bark 未确认送达。':'电脑通知已发出；iPhone Bark 尚未配置。');});
+  $('testNotice').onclick=()=>action(async()=>{const result=await rpc('notify',{id:'shenqi-test',options:{title:'神器 · 通知测试',message:'桌面助手通知测试，没有创建订单。'}});tell(result.bark?'Bark 服务已接受推送，请确认 iPhone 收到通知。':result.barkConfigured?'电脑通知已发出，Bark 未确认接受推送。':'电脑通知已发出；iPhone Bark 尚未配置。');});
   $('diagnostics').onclick=()=>action(async()=>{$('diagnosticResult').textContent=(await rpc('diagnostics')).message;});
   $('shortcut').onclick=()=>action(async()=>{await rpc('shortcut');tell('桌面快捷方式已创建。请将本 EXE 保留在固定位置。');});
   globalThis.Desktop={async tick(){await runtime.tick();await refresh();},async inspect(){return {page,state:await refresh(),native:nativeStatus};},runtime,api};
