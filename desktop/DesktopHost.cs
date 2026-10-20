@@ -58,6 +58,7 @@ internal sealed class DesktopHost : Form
         {
             var environment=await CoreWebView2Environment.CreateAsync(null,Path.Combine(Bootstrap.Root,"BrowserProfile"));
             await panel.EnsureCoreWebView2Async(environment);await official.EnsureCoreWebView2Async(environment);
+            await official.CoreWebView2.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Geolocation,"https://h5.waimai.meituan.com",CoreWebView2PermissionState.Default);
             panel.CoreWebView2.SetVirtualHostNameToFolderMapping("shenqi.local",Bootstrap.Assets,CoreWebView2HostResourceAccessKind.DenyCors);
             panel.CoreWebView2.Settings.AreDefaultContextMenusEnabled=false;
             panel.CoreWebView2.NavigationStarting+=delegate(object sender,CoreWebView2NavigationStartingEventArgs args){if(!IsPanel(args.Uri))args.Cancel=true;};
@@ -72,6 +73,7 @@ internal sealed class DesktopHost : Form
             };
             official.CoreWebView2.NewWindowRequested+=delegate(object sender,CoreWebView2NewWindowRequestedEventArgs args){args.Handled=true;if(AllowedNavigation(args.Uri))official.Source=new Uri(args.Uri);else SendPageState(false,"请在手机美团中完成外部支付或操作。",false);};
             official.CoreWebView2.PermissionRequested+=delegate(object sender,CoreWebView2PermissionRequestedEventArgs args){
+                args.SavesInProfile=false;
                 args.State=CoreWebView2PermissionState.Deny;
                 if(!Bootstrap.Test&&args.PermissionKind==CoreWebView2PermissionKind.Geolocation&&AllowedNavigation(args.Uri)&&MessageBox.Show(this,"美团官方页面请求使用本机定位以展示附近商家。是否允许本次定位？也可拒绝并手动选择地址。","美团定位请求",MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes)args.State=CoreWebView2PermissionState.Allow;
             };
@@ -143,7 +145,7 @@ internal sealed class DesktopHost : Form
             case "storage_set":store.Change((Dictionary<string,object>)args["change"]);return new {ok=true};
             case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);return new {ok=true};
             case "panel_ready":panelReady.TrySetResult(true);return new {ok=true};
-            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.4.0"};
+            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.4.1"};
             case "navigate":
                 string url=Convert.ToString(args["url"]);if(!AllowedNavigation(url))throw new IOException("只允许打开美团官方 HTTPS 网页。");official.Source=new Uri(url);return new {id=1};
             case "reload":if(official.CoreWebView2!=null)official.CoreWebView2.Reload();return new {ok=true};
@@ -164,7 +166,7 @@ internal sealed class DesktopHost : Form
                 return new {ok=true};
             case "notify":return await Notify(args);
             case "diagnostics":
-                return new {message="程序：0.4.0\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
+                return new {message="程序：0.4.1\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
             default:throw new IOException("不支持此操作。");
         }
     }

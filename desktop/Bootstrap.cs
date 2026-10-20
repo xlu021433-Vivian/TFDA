@@ -11,8 +11,8 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("神器 · 独立桌面点餐助手")]
-[assembly: AssemblyVersion("0.4.0.0")]
-[assembly: AssemblyFileVersion("0.4.0.0")]
+[assembly: AssemblyVersion("0.4.1.0")]
+[assembly: AssemblyFileVersion("0.4.1.0")]
 
 internal static class Bootstrap
 {
@@ -44,7 +44,7 @@ internal static class Bootstrap
             using(var mutex=new Mutex(true,"Local\\ShenqiDesktop-"+Hash(Encoding.UTF8.GetBytes(Root.ToLowerInvariant())).Substring(0,20),out created))
             {
                 if(!created) { MessageBox.Show("神器已经在运行。请切换到已打开的神器窗口。","神器");return 0; }
-                Assets=Path.Combine(Root,"Runtime","0.4.0");Directory.CreateDirectory(Assets);
+                Assets=Path.Combine(Root,"Runtime","0.4.1");Directory.CreateDirectory(Assets);
                 var files=Json.Deserialize<List<Dictionary<string,string>>>(Encoding.UTF8.GetString(Resource("runtime-files.json")));
                 foreach(var file in files)
                 {

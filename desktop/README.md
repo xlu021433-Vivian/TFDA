@@ -20,7 +20,7 @@ node --test desktop/runtime.test.cjs
 ## 隔离验证
 
 ```powershell
-Start-Process dist/desktop-0.4.0/Shenqi-Desktop.exe -Wait -ArgumentList '--self-test','--data-dir','D:\new-empty-test-profile','--report','D:\test-report.json'
+Start-Process dist/desktop-0.4.1/Shenqi-Desktop.exe -Wait -ArgumentList '--self-test','--data-dir','D:\new-empty-test-profile','--report','D:\test-report.json'
 ```
 
 测试要求全新的空目录，拦截模拟页的全部请求，不连接真实美团、不会产生真实订单，不发真实通知；走通实际 WebView2、左侧按钮、本机桥接、选店、加购、核对券、单次提交和订单号识别，同时检查数据加密、持久化和循环任务未启用。测试图片明确对应模拟订单。`--demo --data-dir <新空目录>` 用于界面验收，同样不会访问真实账号。
