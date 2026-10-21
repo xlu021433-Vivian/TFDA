@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const crypto=require('node:crypto');
-const folder=path.resolve(process.env.SHENQI_DESKTOP_ASSETS||'dist/desktop-0.4.3/assets');
+const folder=path.resolve(process.env.SHENQI_DESKTOP_ASSETS||'dist/desktop-0.5.0/assets');
 const P=require(path.join(folder,'policy.js')),S=require(path.join(folder,'schedule.js'));
 const sandbox={ShenqiPolicy:P,ShenqiSchedule:S,Date,crypto,structuredClone,URL};
 vm.runInNewContext(fs.readFileSync(path.join(folder,'worker.js'),'utf8'),sandbox);
@@ -50,4 +50,17 @@ test('starting inside the selected merchant retains it and rejects foreign menu 
   for(const currentMenu of ['https://example.com/waimai/mindex/menu?poi_id_str=x','https://h5.waimai.meituan.com:8443/waimai/mindex/menu?poi_id_str=x','https://h5.waimai.meituan.com/waimai/mindex/menu']){
     const g=setup();await assert.rejects(g.runtime.message({...request,currentMenu},g.panel));assert.equal(g.tabs.length,0);
   }
+});
+test('an active submission cannot lose its duplicate guard; stopping retains it until reviewed',async()=>{
+  const f=setup();await f.runtime.message(request,f.panel);const id=f.data.activeRun.id;
+  await f.runtime.message({type:'reserve',runId:id,budget:2500,total:1500},f.page);
+  await assert.rejects(f.runtime.message({type:'clear',reviewed:true},f.panel),/先暂停/);assert.equal(f.data.submissionAttempt,true);
+  await f.runtime.message({type:'configure_schedule',schedule:{...S.defaults,enabled:false}},f.panel);assert.equal(f.data.submissionAttempt,true);
+  await f.runtime.message({type:'clear',reviewed:true},f.panel);assert.equal(f.data.submissionAttempt,undefined);
+});
+test('manual specification attention notifies once and keeps the task available for review',async()=>{
+  const f=setup();await f.runtime.message({...request,currentMenu:'https://h5.waimai.meituan.com/waimai/mindex/menu?poi_id_str=fixture'},f.panel);
+  const id=f.data.activeRun.id;await f.runtime.message({type:'schedule_attention',id},f.page);await f.runtime.message({type:'schedule_attention',id},f.page);
+  assert.equal(f.notifications.length,1);assert.equal(f.data.activeRun.stage,'menu');assert.equal(f.data.submissionAttempt,undefined);
+  await f.runtime.message({type:'schedule_check',id},f.page);
 });

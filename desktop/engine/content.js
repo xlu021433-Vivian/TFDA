@@ -111,12 +111,14 @@
     busy = true; controls();
     try { await action(); }
     catch (error) {
-      autoFlow=false; armed=null; status(error.message || '操作未完成，请检查官方页面', 'bad');
-      if(scheduledId)try{await message({type:'schedule_failed',id:scheduledId,reason:error.message||'点餐未完成'});}catch{}
+      if(!pending){autoFlow=false;armed=null;}
+      status(error.message || '操作未完成，请检查官方页面', 'bad');
+      if(scheduledId&&!pending)try{await message({type:'schedule_failed',id:scheduledId,reason:error.message||'点餐未完成'});}catch{}
     }
     finally { busy = false; controls(); }
   }
   async function addAction() {
+    if(stopped&&scheduledId)throw Error('本次点餐已暂停，不会恢复加购');
     stopped = false;
     if (!$('ingredients').checked) throw Error('请先核对所选菜品的食材与忌口');
     const budget = P.cents($('budget').value), plan = items();
@@ -129,11 +131,16 @@
         if(scheduledId)await message({type:'schedule_check',id:scheduledId});
         status(`正在加购并核对：${actual.name}`);
         const request=P.intent(scheduledRun?.config.request??$('request').value);
-        const result = await adapter.add(actual.key, budget,{requireSpecs:!!request.options});
+        const result = await adapter.add(actual.key, budget,{requireSpecs:!!request.options,shouldStop:()=>stopped});
         if (result.status === 'specs') {
-          if(scheduledId&&scheduledRun.config.defaultSpecs){await adapter.confirmDefaultSpecs(result.pending,budget,request);actual=adapter.cards().find(item=>item.key===selectedItem.key);continue;}
+          let reason='';
+          if(scheduledId&&scheduledRun.config.defaultSpecs){
+            try{await adapter.confirmDefaultSpecs(result.pending,budget,request,()=>stopped);actual=adapter.cards().find(item=>item.key===selectedItem.key);continue;}
+            catch(error){if(stopped||adapter.isUncertain())throw error;reason=error.message;}
+          }
           pending = result.pending;
-          status(`请在官方弹窗核对“${actual.name}”的规格，只加入 1 份，再点击本面板的“核对结果”。可收起助手腾出空间。`);
+          status(`${reason?reason+'。':''}请在右侧官方弹窗选择“${actual.name}”的规格，核对忌口和输入的要求，只加入 1 份；再在左侧点击“核对并继续”。`);
+          if(scheduledId)message({type:'schedule_attention',id:scheduledId}).catch(()=>{});
           return;
         }
         actual = adapter.cards().find(item => item.key === selectedItem.key);
@@ -142,7 +149,7 @@
     menu = adapter.cards(); draw(); status('所选数量已核对。前往官方结算后，还需核对含配送费的最终合计。', 'good');
     if(autoFlow && !stopped) {
       if(scheduledId)await message({type:'schedule_stage',id:scheduledId,stage:'preview',expected:items().map(({name,desired})=>({name,desired}))});
-      adapter.checkout(items(),budget); status('加购已核对，正在前往官方结算并准备选券。');
+      adapter.checkout(items(),budget,()=>stopped); status('加购已核对，正在前往官方结算并准备选券。');
     }
   }
   $('add').onclick = () => run(addAction);
@@ -171,6 +178,9 @@
     autoFlow=true; await addAction();
   });
   $('verify').onclick = () => run(async () => {
+    if(stopped||!pending)throw Error('没有可继续的规格步骤');
+    if(scheduledId)await message({type:'schedule_check',id:scheduledId});
+    if(stopped||!pending)throw Error('本次点餐已暂停，不会恢复加购');
     adapter.verifyManual(pending); pending = null; menu = adapter.cards(); draw(); status('这 1 份加购已核对。点击“按所选数量加购”继续，其余已满足目标的菜品不会重复添加。', 'good');
     if(autoFlow) await addAction();
   });
@@ -195,6 +205,7 @@
   });
   $('mode').onchange=()=>{ $('orderConsent').checked=false; consentFingerprint=''; controls(); };
   $('couponsApply').onclick=()=>run(async()=>{
+    if(stopped&&scheduledId)throw Error('本次点餐已暂停，不会恢复选券');
     stopped=false; $('orderConsent').checked=false; consentFingerprint='';
     if(scheduledId)await message({type:'schedule_check',id:scheduledId});
     status('正在核对免费膨胀和实际用券；未确认的操作不会自动重试。');
@@ -289,6 +300,7 @@
         if(!candidates.length||task.tried.length>=5)throw Error('附近已加载商家没有符合预算的可选餐饮店，今日不下单');
         const chosen=candidates[Math.floor(Math.random()*candidates.length)];
         await message({type:'schedule_shop',id:task.id,name:chosen.name,minimum:chosen.minimum});
+        if(stopped)throw Error('已暂停选店');
         status('定时随机选店：'+chosen.name);chosen.element.click();return;
       }
       if(task.stage!=='menu')throw Error('购物车阶段无法核对，不会重复加购');
@@ -297,7 +309,7 @@
       const candidates=all.filter(item=>item.cents*request.quantity>=task.minimum&&(!task.merchant||task.merchant.foods.includes(item.name))&&(request.category||request.keywords?.length||/饭|面|鸡|牛|羊|沙拉|轻食/.test(item.name)));
       let plan;
       try{plan=P.randomPlan(candidates,request,task.config.budget);}catch(error){
-        if(!task.currentShop&&task.config.anyShop&&task.tried.length<5){await message({type:'schedule_stage',id:task.id,stage:'home'});location.assign('https://h5.waimai.meituan.com/waimai/mindex/home');return;}
+        if(!task.currentShop&&task.config.anyShop&&task.tried.length<5){await message({type:'schedule_stage',id:task.id,stage:'home'});if(stopped)throw Error('已暂停换店');location.assign('https://h5.waimai.meituan.com/waimai/mindex/home');return;}
         throw error;
       }
       menu=all;selected.clear();for(const item of plan)selected.set(item.key,item.desired);draw();
@@ -307,7 +319,8 @@
     });
   }
   globalThis.chrome?.runtime?.onMessage?.addListener((request,sender)=>{
-    if(request.type==='stop_scheduled'&&sender.id===chrome.runtime.id){stopped=true;autoFlow=false;armed=null;status('已暂停定时任务，已加入商品请在官方购物车核对。');}
+    if(request.type==='stop_scheduled'&&sender.id===chrome.runtime.id){stopped=true;autoFlow=false;armed=null;pending=null;controls();status('已暂停点餐，已加入商品请在官方购物车核对。');}
+    if(request.type==='verify_pending'&&sender.id===chrome.runtime.id&&request.reviewed===true&&pending&&!busy&&!stopped)$('verify').click();
   });
   message({type:'read'}).then(result=>{
     persistenceReady=true; attempt=result.attempt;

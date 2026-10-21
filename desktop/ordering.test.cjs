@@ -29,7 +29,7 @@ test('conflicts, multiple meals, unknown requirements and invalid amounts remain
 });
 
 function fixture(t,{control='direct',silent=false,unknown=false,disabled=false}={}){
-  const dom=new JSDOM('<body><dd data-tag="spu"><div class="name_real">鲜奶茶</div><div data-tag="price">¥12</div><div id="group" class="sqt-menu-add-buttons"></div></dd><button id="cart" aria-label="购物车，没有商品"></button></body>',{url:'https://h5.waimai.meituan.com/waimai/mindex/menu?poi_id_str=fixture'});
+  const dom=new JSDOM('<body><dd data-tag="spu"><div class="name_real">鲜奶茶</div><div data-tag="price">¥12</div><div id="group" class="sqt-menu-add-buttons"></div></dd><button id="cart" aria-label="购物车，没有商品"></button></body>',{url:'https://h5.waimai.meituan.com/waimai/mindex/menu?poi_id_str=fixture',runScripts:'outside-only'});
   t.after(()=>dom.window.close());const w=dom.window,d=w.document;let clicks=0,adds=0,q=0;
   const group=d.getElementById('group'),cart=d.getElementById('cart');
   function update(){q++;adds++;group.innerHTML='<span aria-label="移出购物车"></span><span class="count_real">'+q+'</span><span aria-label="加入购物车"><span class="clickArea_real"></span></span>';group.querySelector('.clickArea_real').onclick=onClick;cart.setAttribute('aria-label','购物车，已选商品');cart.textContent=String(q);}
@@ -70,4 +70,64 @@ test('the desktop shows interpretation or an actionable error as the user types'
   w.ShenqiPolicy=P;w.ShenqiSchedule=require('./engine/schedule.js');w.ShenqiDesktopWorker={createRuntime:()=>({tick:async()=>{},message:async()=>({ok:true})})};w.eval(fs.readFileSync(path.join(__dirname,'desktop.js'),'utf8'));
   await new Promise(r=>setTimeout(r,20));const input=d.getElementById('request');input.value='想吃河粉 25元预算 一份';input.dispatchEvent(new w.Event('input'));await new Promise(r=>setTimeout(r,20));assert.match(d.getElementById('intentResult').textContent,/河粉.*25/);assert.equal(d.getElementById('budget').value,'25.00');
   input.value='奶茶不用券';input.dispatchEvent(new w.Event('input'));await new Promise(r=>setTimeout(r,20));assert.match(d.getElementById('intentResult').textContent,/冲突/);assert.equal(d.getElementById('startMeal').disabled,true);
+});
+
+test('pause during lazy control preparation prevents the first mutating click',async t=>{
+  const f=fixture(t);let stopped=false;f.d.querySelector('dd[data-tag]').scrollIntoView=()=>{stopped=true;};
+  await assert.rejects(f.adapter.add(f.key,2500,{shouldStop:()=>stopped}),/停止/);assert.equal(f.counts().clicks,0);assert.equal(f.adapter.isUncertain(),false);
+});
+test('pause before specification confirmation prevents option and cart mutations',async t=>{
+  const f=fixture(t,{control:'spec'}),result=await f.adapter.add(f.key,2500);
+  await assert.rejects(f.adapter.confirmDefaultSpecs(result.pending,2500,P.intent('奶茶少糖去冰'),()=>true),/停止/);
+  assert.equal(f.counts().adds,0);assert.match(f.d.querySelector('.selected_real').textContent,/全糖/);
+});
+function couponFixture(t,{red=true,merchant='-¥3'}={}){
+  const dom=new JSDOM('<body>'+(red?'<div class="promotion_real" id="red"><span>美团红包</span><span class="promotionSelect_real">无可用</span></div>':'')+'<div class="promotion_real" id="merchant"><span>商家代金券</span><span class="promotionSelect_real">'+merchant+'</span></div><div><span class="actual_real">¥15</span><button id="sqt-openh5-preview-submit-btn">提交订单</button></div></body>',{url:'https://h5.waimai.meituan.com/waimai/mindex/preview'});t.after(()=>dom.window.close());
+  const d=dom.window.document;let redClosed=0,selected=0,submits=0;
+  d.querySelector('#sqt-openh5-preview-submit-btn').onclick=()=>submits++;
+  if(red)d.getElementById('red').onclick=()=>{const modal=d.createElement('article');modal.innerHTML='<span>不可使用红包</span><button>确认</button>';modal.querySelector('button').onclick=()=>{redClosed++;modal.remove();};d.body.append(modal);};
+  d.getElementById('merchant').onclick=()=>{const modal=d.createElement('article');modal.innerHTML='<span>可用店铺券</span><div class="topPart_real"><span class="disContainer_real">¥5</span><span class="select_real canceled_real"></span></div><button>确定</button>';modal.querySelector('.topPart_real').onclick=()=>{selected++;modal.querySelector('.select_real').className='select_real';};modal.querySelector('button').onclick=()=>{if(!modal.querySelector('.canceled_real'))d.querySelector('#merchant .promotionSelect_real').textContent='-¥5';modal.remove();};d.body.append(modal);};
+  return {d,a:create(d,{visible:()=>true,timeout:40,interval:1}),counts:()=>({redClosed,selected,submits})};
+}
+test('a genuinely applied merchant voucher alone satisfies the coupon requirement',async t=>{
+  const f=couponFixture(t,{red:false});const result=await f.a.applyCoupons();assert.equal(result.coupons[1].discount,300);assert.equal(f.counts().submits,0);
+});
+test('an empty red-packet list closes and continues to a usable merchant voucher',async t=>{
+  const f=couponFixture(t,{merchant:'1张可用'});const result=await f.a.applyCoupons({expand:true});assert.equal(result.coupons[1].discount,500);assert.deepEqual(f.counts(),{redClosed:1,selected:1,submits:0});
+});
+test('no red packet and no actual merchant discount is still a hard stop',async t=>{
+  const f=couponFixture(t,{merchant:'无可用'});await assert.rejects(f.a.applyCoupons(),/实际用券/);assert.equal(f.counts().submits,0);
+});
+test('complex specifications wait for a reviewed one-item add, and verification never adds again',async t=>{
+  const f=fixture(t,{control:'spec'}),received=[],listeners=[];
+  f.w.HTMLElement.prototype.getClientRects=function(){return this.closest('[hidden]')?[]:[{}];};
+  const task={id:'manual-fixture',stage:'menu',currentShop:true,tried:[],minimum:0,config:{budget:2500,request:'奶茶无糖',defaultSpecs:true,anyShop:true}};
+  const checkout=f.d.createElement('button');checkout.textContent='去结算';let checkouts=0;checkout.onclick=()=>checkouts++;f.d.body.append(checkout);
+  f.w.chrome={runtime:{id:'test',onMessage:{addListener:fn=>listeners.push(fn)},sendMessage:async message=>{received.push(message);return message.type==='read'?{ok:true,attempt:false,preferences:{budget:'25',mode:'unpaid'},run:task}:{ok:true,run:task};}}};
+  for(const name of ['guard-data.js','policy.js','adapter.js','styles.js','content.js'])f.w.eval(fs.readFileSync(path.join(__dirname,'engine',name),'utf8'));
+  const shadow=f.d.getElementById('shenqi-waimai-assistant').shadowRoot;
+  for(let i=0;i<50&&shadow.getElementById('verify').hidden;i++)await new Promise(r=>setTimeout(r,5));
+  assert.equal(shadow.getElementById('verify').hidden,false);assert.equal(f.counts().adds,0);assert.equal(received.some(x=>x.type==='schedule_failed'),false);
+  for(const fn of listeners)fn({type:'verify_pending',reviewed:true},{id:'test'});
+  await new Promise(r=>setTimeout(r,15));assert.equal(received.some(x=>x.type==='schedule_failed'),false);assert.equal(f.counts().adds,0);
+  f.d.querySelector('.addToCartBtn_real').click();
+  for(const fn of listeners)fn({type:'verify_pending',reviewed:true},{id:'test'});
+  await new Promise(r=>setTimeout(r,25));assert.equal(f.counts().adds,1);assert.equal(checkouts,1);assert.equal(shadow.getElementById('verify').hidden,true);
+});
+
+test('a stop received during manual verification cannot restart checkout',async t=>{
+  const f=fixture(t,{control:'spec'}),listeners=[];let stopOnCheck=false,checkouts=0;
+  f.w.HTMLElement.prototype.getClientRects=function(){return this.closest('[hidden]')?[]:[{}];};
+  const task={id:'stop-fixture',stage:'menu',currentShop:true,tried:[],minimum:0,config:{budget:2500,request:'奶茶无糖',defaultSpecs:true,anyShop:true}};
+  const checkout=f.d.createElement('button');checkout.textContent='去结算';checkout.onclick=()=>checkouts++;f.d.body.append(checkout);
+  f.w.chrome={runtime:{id:'test',onMessage:{addListener:fn=>listeners.push(fn)},sendMessage:async body=>{
+    if(body.type==='schedule_check'&&stopOnCheck)for(const fn of listeners)fn({type:'stop_scheduled'},{id:'test'});
+    return body.type==='read'?{ok:true,attempt:false,preferences:{budget:'25',mode:'unpaid'},run:task}:{ok:true,run:task};
+  }}};
+  for(const name of ['guard-data.js','policy.js','adapter.js','styles.js','content.js'])f.w.eval(fs.readFileSync(path.join(__dirname,'engine',name),'utf8'));
+  const shadow=f.d.getElementById('shenqi-waimai-assistant').shadowRoot;
+  for(let i=0;i<50&&shadow.getElementById('verify').hidden;i++)await new Promise(resolve=>setTimeout(resolve,5));
+  assert.equal(shadow.getElementById('verify').hidden,false);f.d.querySelector('.addToCartBtn_real').click();stopOnCheck=true;
+  for(const fn of listeners)fn({type:'verify_pending',reviewed:true},{id:'test'});
+  await new Promise(resolve=>setTimeout(resolve,25));assert.equal(f.counts().adds,1);assert.equal(checkouts,0);assert.equal(shadow.getElementById('verify').hidden,true);
 });

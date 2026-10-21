@@ -29,11 +29,12 @@ internal sealed class DesktopHost : Form
     internal DesktopHost()
     {
         store=new LocalStore(Bootstrap.Root);
+        StopInterruptedTask(store);
         Text=Bootstrap.Test?"神器 · 本地模拟验证（不会创建真实订单）":"神器 · 今天这一餐";
         var area=Screen.PrimaryScreen.WorkingArea;
         Width=Math.Min(1320,area.Width-32);Height=Math.Min(900,area.Height-32);
         MinimumSize=new Size(Math.Min(1040,Width),Math.Min(700,Height));StartPosition=FormStartPosition.CenterScreen;
-        BackColor=Color.FromArgb(247,245,240);
+        BackColor=Color.FromArgb(245,247,243);
         var split=new SplitContainer { Size=new Size(1280,850),Dock=DockStyle.Fill,FixedPanel=FixedPanel.Panel1,SplitterWidth=1,SplitterDistance=396,Panel1MinSize=360,Panel2MinSize=560 };
         Controls.Add(split);panel.Dock=DockStyle.Fill;official.Dock=DockStyle.Fill;split.Panel1.Controls.Add(panel);split.Panel2.Controls.Add(official);
         loading.Dock=DockStyle.Fill;loading.Text="正在准备神器…\n无需安装浏览器扩展。";loading.TextAlign=ContentAlignment.MiddleCenter;loading.Font=new Font("Microsoft YaHei UI",14);Controls.Add(loading);loading.BringToFront();
@@ -42,6 +43,17 @@ internal sealed class DesktopHost : Form
         timer.Interval=30000;timer.Tick+=async delegate { if(initialized)try{await panel.CoreWebView2.ExecuteScriptAsync("Desktop.tick().catch(()=>{});");}catch{} };
         Shown+=async delegate { await Initialize(); };
         FormClosed+=delegate { timer.Stop();tray.Visible=false;tray.Dispose(); };
+    }
+    static void StopInterruptedTask(LocalStore local)
+    {
+        object value;
+        if(!local.Engine.TryGetValue("activeRun",out value))return;
+        var run=value as Dictionary<string,object>;if(run==null||!run.ContainsKey("stage"))return;
+        string stage=Convert.ToString(run["stage"]);
+        if(stage=="done"||stage=="failed"||stage=="stopped")return;
+        var stopped=new Dictionary<string,object>(run);
+        stopped["stage"]="stopped";stopped["reason"]="上次窗口已关闭，旧任务未恢复。已加购商品或提交结果请先在美团核对。";
+        local.Change(new Dictionary<string,object>{{"activeRun",stopped}});
     }
     internal static bool IsPanel(string value)
     { Uri uri;return Uri.TryCreate(value,UriKind.Absolute,out uri)&&uri.Scheme=="https"&&uri.Host=="shenqi.local"&&uri.IsDefaultPort&&uri.AbsolutePath=="/options.html"&&uri.Query==""; }
@@ -145,7 +157,7 @@ internal sealed class DesktopHost : Form
             case "storage_set":store.Change((Dictionary<string,object>)args["change"]);return new {ok=true};
             case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);return new {ok=true};
             case "panel_ready":panelReady.TrySetResult(true);return new {ok=true};
-            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.4.3"};
+            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.5.0"};
             case "navigate":
                 string url=Convert.ToString(args["url"]);if(!AllowedNavigation(url))throw new IOException("只允许打开美团官方 HTTPS 网页。");official.Source=new Uri(url);return new {id=1};
             case "reload":if(official.CoreWebView2!=null)official.CoreWebView2.Reload();return new {ok=true};
@@ -166,7 +178,7 @@ internal sealed class DesktopHost : Form
                 return new {ok=true};
             case "notify":return await Notify(args);
             case "diagnostics":
-                return new {message="程序：0.4.3\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
+                return new {message="程序：0.5.0\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
             default:throw new IOException("不支持此操作。");
         }
     }
@@ -181,13 +193,13 @@ internal sealed class DesktopHost : Form
             if(channel=="page-request")
             {
                 var body=(Dictionary<string,object>)message["body"];string type=Convert.ToString(body["type"]);
-                if(!new HashSet<string>{"read","save","reserve","clear","schedule_check","schedule_stage","schedule_shop","schedule_failed","order_result"}.Contains(type))return;
+                if(!new HashSet<string>{"read","save","reserve","clear","schedule_check","schedule_attention","schedule_stage","schedule_shop","schedule_failed","order_result"}.Contains(type))return;
                 PostPanel(new {channel="page-request",id=message["id"],body,url=args.Source});
             }
             if(channel=="page-status")
             {
                 pageStatus=Convert.ToString(message["status"]);
-                PostPanel(new {channel="page-state",state=new {ready=true,status=pageStatus,loginNeeded=message["loginNeeded"],url=args.Source}});
+                PostPanel(new {channel="page-state",state=new {ready=true,status=pageStatus,loginNeeded=message["loginNeeded"],pendingSpecs=message.ContainsKey("pendingSpecs")&&Convert.ToBoolean(message["pendingSpecs"]),url=args.Source}});
             }
         }
         catch{ }
@@ -222,6 +234,20 @@ internal sealed class DesktopHost : Form
     {
         if(IsPanel("https://shenqi.local.evil/options.html")||IsPanel("https://shenqi.local:8443/options.html")||IsOfficial("https://h5.waimai.meituan.com.evil/")||AllowedNavigation("file:///C:/test"))throw new IOException("来源校验失败。");
         await Task.Delay(2500);
+        string layoutCheck="(()=>{const main=document.querySelector('main'),button=document.getElementById('startMeal'),box=button.getBoundingClientRect();return document.body.scrollWidth<=innerWidth&&main.scrollWidth<=main.clientWidth&&box.height>=44&&box.top>=0&&box.bottom<=innerHeight;})()";
+        if(await panel.CoreWebView2.ExecuteScriptAsync(layoutCheck)!="true")throw new IOException("点餐按钮被遮挡或界面横向溢出。");
+        using(var idle=new FileStream(Path.Combine(Bootstrap.Root,"panel-idle.png"),FileMode.Create))await panel.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,idle);
+        var split=panel.Parent.Parent as SplitContainer;int previous=split.SplitterDistance;split.SplitterDistance=360;await Task.Delay(200);
+        if(await panel.CoreWebView2.ExecuteScriptAsync(layoutCheck)!="true")throw new IOException("窄栏点餐布局不可用。");
+        using(var narrow=new FileStream(Path.Combine(Bootstrap.Root,"panel-narrow.png"),FileMode.Create))await panel.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,narrow);
+        split.SplitterDistance=previous;
+        foreach(string tab in new[]{"schedule","notice"})
+        {
+            await panel.CoreWebView2.ExecuteScriptAsync("document.getElementById('"+tab+"Tab').click()");await Task.Delay(100);
+            if(await panel.CoreWebView2.ExecuteScriptAsync("document.querySelector('main').scrollWidth<=document.querySelector('main').clientWidth&&document.getElementById('mealAction').hidden")!="true")throw new IOException("设置页布局或操作区切换异常。");
+            using(var image=new FileStream(Path.Combine(Bootstrap.Root,"panel-"+tab+".png"),FileMode.Create))await panel.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,image);
+        }
+        await panel.CoreWebView2.ExecuteScriptAsync("document.getElementById('mealTab').click()");
         string command="(async()=>{const request=document.getElementById('request');request.value='想吃河粉 25元预算 一份';request.dispatchEvent(new Event('input'));document.getElementById('mealConsent').checked=true;await Desktop.inspect();document.getElementById('startMeal').click();})().catch(e=>document.getElementById('message').textContent=e.message);";
         await panel.CoreWebView2.ExecuteScriptAsync(command);
         bool done=false;
@@ -238,13 +264,18 @@ internal sealed class DesktopHost : Form
         if(store.Engine.ContainsKey("schedule")&&Convert.ToBoolean(((Dictionary<string,object>)store.Engine["schedule"])["enabled"]))throw new IOException("单次点餐意外启用了循环定时。");
         var reloaded=new LocalStore(Bootstrap.Root);if(!reloaded.Engine.ContainsKey("lastOrder"))throw new IOException("点餐记录未持久保存。");
         string file=Path.Combine(Bootstrap.Root,"settings.dpapi");if(Encoding.UTF8.GetString(File.ReadAllBytes(file)).Contains("TEST202610200001"))throw new IOException("本机状态未加密。");
+        var finished=new Dictionary<string,object>((Dictionary<string,object>)store.Engine["activeRun"]);
+        var interrupted=new Dictionary<string,object>(finished);interrupted["stage"]="preview";
+        store.Change(new Dictionary<string,object>{{"activeRun",interrupted}});StopInterruptedTask(store);
+        if(Convert.ToString(((Dictionary<string,object>)store.Engine["activeRun"])["stage"])!="stopped"||!Convert.ToBoolean(store.Engine["submissionAttempt"])||!store.Engine.ContainsKey("attemptMeta"))throw new IOException("重开后旧任务或提交防重记录处理异常。");
+        store.Change(new Dictionary<string,object>{{"activeRun",finished}});
         await panel.CoreWebView2.ExecuteScriptAsync("Desktop.inspect()");await Task.Delay(400);
         await Inject();
         string singleSurface=await official.CoreWebView2.ExecuteScriptAsync("(()=>{const host=document.getElementById('shenqi-waimai-assistant');return !!host&&getComputedStyle(host).display==='none'&&host.getClientRects().length===0&&host.getAttribute('aria-hidden')==='true';})()");
         if(singleSurface!="true")throw new IOException("右侧仍有重复的助手界面。");
         using(var left=new FileStream(Path.Combine(Bootstrap.Root,"panel.png"),FileMode.Create))await panel.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,left);
         using(var right=new FileStream(Path.Combine(Bootstrap.Root,"official-fixture.png"),FileMode.Create))await official.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,right);
-        WriteReport(new {ok=true,sourceGuards=true,embeddedBrowser=true,fullFixtureFlow=true,singleAssistantSurface=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="TEST202610200001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
+        WriteReport(new {ok=true,sourceGuards=true,embeddedBrowser=true,fullFixtureFlow=true,singleAssistantSurface=true,primaryActionVisible=true,narrowLayout=true,interruptedTaskNotResumed=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="TEST202610200001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
         ExitCode=0;Close();
     }
     string Fixture(string path)

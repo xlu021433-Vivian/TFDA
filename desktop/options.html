@@ -1,21 +1,51 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; frame-src 'none'; base-uri 'none'; form-action 'none'"><title>神器 · 今天这一餐</title><link rel="stylesheet" href="desktop.css"></head><body>
-<header><div class="brand">神器<span>桌面点餐助手 · 0.4.3 测试版</span></div><h1>今天，想吃点什么？</h1><p>在这里提需求、看进度。右侧是美团官方页面。</p></header>
-<div class="connection"><span id="dot" class="dot"></span><div><b id="connection">正在启动内置网页…</b><small id="pageStatus">无需安装浏览器扩展</small></div><button id="reload" class="quiet">重试</button></div>
-<nav aria-label="助手功能"><button class="active" data-tab="meal">点这一餐</button><button data-tab="schedule">定时</button><button data-tab="notice">通知</button></nav>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self' data:; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<title>神器 · 今天这一餐</title><link rel="stylesheet" href="desktop.css">
+</head>
+<body>
+<header class="app-header">
+  <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M6 15h20c0 7-4 11-10 11S6 22 6 15Z" fill="currentColor"/><path d="M10 5c-3 3 3 4 0 7m7-8c-3 3 3 4 0 7m7-6c-3 3 3 4 0 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10 28h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><div><b>神器</b><small>你的日常点餐助手</small></div></div>
+  <span class="version">0.5.0 <span>测试版</span></span>
+</header>
+<div class="connection"><span id="dot" class="dot"></span><div><b id="connection">正在连接美团</b><small id="pageStatus">稍等一下，正在准备官方页面</small></div><button id="reload" class="icon-button" title="重新加载美团页面" aria-label="重新加载美团页面"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 9a7 7 0 1 0 .2 6M19 4v5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+<nav aria-label="助手功能" role="tablist"><button id="mealTab" class="active" data-tab="meal" role="tab" aria-controls="meal" aria-selected="true">点一餐</button><button id="scheduleTab" data-tab="schedule" role="tab" aria-controls="schedule" aria-selected="false" tabindex="-1">定时点餐</button><button id="noticeTab" data-tab="notice" role="tab" aria-controls="notice" aria-selected="false" tabindex="-1">付款提醒</button></nav>
 <main>
-<section id="meal" class="tab active">
-<div id="flow" class="flow"><b id="flowTitle">先在右侧登录美团</b><p id="flowDetail">登录、验证码和地址选择都在官方页面完成。确认后勾选本次授权，就可以开始。</p></div>
-<div id="order" class="order" hidden><span>已识别真实待支付订单</span><b id="orderId"></b><p id="orderAmount"></p><button id="openOrder" class="wide">查看官方订单</button></div>
-<div class="ticket"><div><span>本餐预算 · 含包装配送</span><b id="budgetSummary">¥25<span>.00</span></b></div><div class="rules">不吃猪肉 · 必须用券<br>可免费膨胀时尝试一张</div></div>
-<div id="requestForm"><label for="request">今天想吃什么</label><textarea id="request" maxlength="160" aria-describedby="intentResult" placeholder="例如：帮我点一份牛肉饭，25元以内&#10;或：一杯奶茶，少糖去冰"></textarea><p id="intentResult" class="hint" role="status" aria-live="polite"></p>
-<div class="two"><label>券后预算（元）<input id="budget" type="number" min="0.01" max="1000" step="0.01" value="25"></label><button id="home">打开美团首页</button></div>
-<label class="consent"><input id="mealConsent" type="checkbox"><span>我已在右侧确认账号与配送地址，允许本次按预算随机选餐、实际用券后创建一笔待支付订单。菜名无法保证全部配料，付款由我完成。</span></label>
-<button id="startMeal" class="primary wide" disabled>帮我点这一餐</button></div><button id="stop" class="wide secondary">立即暂停后续操作</button>
-
-
-<details id="recovery"><summary>核对上次提交结果</summary><p>只在官方订单中确认上次结果后解除防重记录，避免重复下单。</p><label class="consent"><input id="reviewed" type="checkbox"><span>我已核对官方订单，确认可以开始下一餐</span></label><button id="clear">解除防重记录</button></details>
+<section id="meal" class="tab active" role="tabpanel" aria-labelledby="mealTab">
+  <div class="section-heading"><span class="eyebrow">TODAY'S MEAL</span><h1>今天，想吃点什么？</h1><p>说出你的想法，或者让我随机挑一份。</p></div>
+  <div id="flow" class="flow" hidden><div class="flow-heading"><span class="status-mark" aria-hidden="true"></span><b id="flowTitle">正在准备这一餐</b></div><p id="flowDetail"></p><ol id="steps" class="steps" aria-label="点餐进度"><li data-step="home"><span>1</span>选店</li><li data-step="menu"><span>2</span>加购</li><li data-step="preview"><span>3</span>用券</li><li data-step="done"><span>4</span>待支付</li></ol></div>
+  <section id="manualSpecs" class="manual-card" hidden aria-labelledby="specHeading"><span class="eyebrow">需要你来选</span><h2 id="specHeading">确认一下餐品规格</h2><p>在右侧官方弹窗选择规格，只加入 <b>1 份</b>。核对后在这里继续，已加好的份数不会重复添加。</p><label class="consent"><input id="specConsent" type="checkbox"><span>我已核对食材、糖度等要求，并在官方弹窗只加了1份。</span></label><button id="resumeSpecs" class="primary wide" disabled>核对并继续</button></section>
+  <div id="order" class="order" hidden><div class="order-heading"><span class="order-check" aria-hidden="true">✓</span><div><b>这一餐，等你付款</b><small>已识别官方待支付订单</small></div></div><dl><div><dt>订单号</dt><dd id="orderId"></dd></div><div><dt>待支付</dt><dd id="orderAmount"></dd></div></dl><button id="openOrder" class="primary wide">查看官方订单</button><p>请在美团有效期内本人付款。</p></div>
+  <div id="requestForm">
+    <label class="field-label" for="request">告诉我你的需求</label><textarea id="request" maxlength="160" aria-describedby="intentResult" placeholder="想吃河粉，25元预算，一份"></textarea>
+    <div class="suggestions" aria-label="快速填写示例"><button data-request="">随便吃点</button><button data-request="想吃河粉 25元预算 一份">来份河粉</button><button data-request="一杯奶茶，少糖去冰，预算25元">喝杯奶茶</button></div>
+    <div id="intentResult" class="intent-result" role="status" aria-live="polite"></div>
+    <div class="budget-row"><label for="budget"><b>本餐预算</b><small>券后 · 含包装与配送</small></label><div class="budget-input"><span>¥</span><input id="budget" type="number" min="0.01" max="1000" step="0.01" value="25.00" aria-label="本餐券后预算（元）"></div></div>
+    <div class="preferences" aria-label="已保存偏好"><span><i aria-hidden="true">✓</i> 不吃猪肉</span><span><i aria-hidden="true">✓</i> 必须用券</span><span>可免费膨胀一张</span></div>
+    <button id="home" class="text-button wide">想自己挑店？打开美团首页 →</button>
+  </div>
+  <button id="stop" class="wide stop-button" hidden>暂停这次点餐</button>
+  <details id="recovery" class="recovery" hidden><summary>核对上一笔提交结果</summary><p id="recoveryHint">先在官方订单中核对上一笔结果。解除防重记录不会取消订单，也不会清空购物车。</p><label class="consent"><input id="reviewed" type="checkbox"><span>我已核对官方订单，确认可以开始下一餐。</span></label><button id="clear" class="wide">核对后，开始准备下一餐</button></details>
+  <details id="history" class="history" hidden><summary>上次点餐记录</summary><p id="historyDetail"></p></details>
 </section>
-<section id="schedule" class="tab"><h2>工作日，到点选好。</h2><p>北京时间执行。电脑和本程序需保持运行；超过时间窗口10分钟会跳过当天。</p><label>执行时间<input id="time" type="time" value="11:00"></label><div class="days" aria-label="每周执行日期"><label><input name="day" value="1" type="checkbox" checked>一</label><label><input name="day" value="2" type="checkbox" checked>二</label><label><input name="day" value="3" type="checkbox" checked>三</label><label><input name="day" value="4" type="checkbox" checked>四</label><label><input name="day" value="5" type="checkbox" checked>五</label><label><input name="day" value="6" type="checkbox">六</label><label><input name="day" value="7" type="checkbox">日</label></div><label>每餐券后预算（元）<input id="scheduleBudget" type="number" min="0.01" max="1000" step="0.01" value="25"></label><label>偏好（留空随机正餐）<input id="scheduleRequest" maxlength="160" placeholder="例如：牛肉饭"></label><label class="consent"><input id="scheduleConsent" type="checkbox"><span>我已核对当前美团配送地址，授权按上述时间和预算、不限定商家、排除猪肉、必须用券，使用完整默认规格并创建待支付订单，由我付款。</span></label><label class="switch"><input id="enabled" type="checkbox"><span>启用定时点餐</span></label><button id="saveSchedule" class="primary wide">保存定时设置</button><p id="scheduleState" class="hint">首次保持关闭，确认后再启用。</p></section>
-<section id="notice" class="tab"><h2>选好了，提醒你付款。</h2><p>电脑通知随程序运行。iPhone Bark 可稍后配置；密钥只加密保存在这台电脑。</p><label>Bark key<input id="barkKey" type="password" autocomplete="off" placeholder="在这里粘贴自己的 Bark key"></label><button id="saveBark" class="primary wide">保存到本机</button><button id="testNotice" class="wide">发送测试通知</button><p id="barkState" class="hint">未配置 iPhone 推送</p><div class="flow"><b>登录不会从其他浏览器迁移</b><p>请在右侧美团页亲自登录。账号与登录状态由内置浏览器保存在本机，不上传 GitHub。</p></div><button id="diagnostics" class="wide">检查连接</button><button id="shortcut" class="wide">添加桌面快捷方式</button><p id="diagnosticResult" class="hint"></p></section>
-<p id="message" role="status" aria-live="polite"></p><footer>真实账号全流程仍待验证，首次请在旁观察。<br>无券、超预算、状态不明时暂停，不自动付款。</footer>
-</main><script src="guard-data.js"></script><script src="policy.js"></script><script src="schedule.js"></script><script src="worker.js"></script><script src="desktop.js"></script></body></html>
+<section id="schedule" class="tab" role="tabpanel" aria-labelledby="scheduleTab">
+  <div class="section-heading"><span class="eyebrow">LUNCH, ON TIME</span><h1>到点，选好这一餐。</h1><p>默认工作日11点，按你的偏好随机选餐。</p></div>
+  <div class="settings-card"><label>执行时间 <span class="label-note">北京时间</span><input id="time" type="time" value="11:00"></label><fieldset><legend>每周哪几天</legend><div class="days"><label><input name="day" value="1" type="checkbox" checked><span>一</span></label><label><input name="day" value="2" type="checkbox" checked><span>二</span></label><label><input name="day" value="3" type="checkbox" checked><span>三</span></label><label><input name="day" value="4" type="checkbox" checked><span>四</span></label><label><input name="day" value="5" type="checkbox" checked><span>五</span></label><label><input name="day" value="6" type="checkbox"><span>六</span></label><label><input name="day" value="7" type="checkbox"><span>日</span></label></div></fieldset><label>每餐预算（含包装配送）<input id="scheduleBudget" type="number" min="0.01" max="1000" step="0.01" value="25"></label><label>想吃什么 <span class="label-note">留空随机正餐</span><input id="scheduleRequest" maxlength="160" placeholder="例如：牛肉饭一份"></label></div>
+  <label class="consent"><input id="scheduleConsent" type="checkbox"><span>我已核对当前配送地址，授权按上述时间、需求和预算，不限商家、不吃猪肉、必须用券，以完整规格创建待支付订单，由我付款。</span></label><label class="switch"><div><b>启用定时点餐</b><small>随时可以关闭</small></div><input id="enabled" type="checkbox" role="switch"></label><button id="saveSchedule" class="primary wide">保存定时设置</button><p id="scheduleState" class="hint"></p><div class="note"><b>执行时，请让电脑和神器保持运行。</b><p>关闭或休眠后错过11点超过10分钟，会跳过当天；需要你处理规格或登录时会暂停。</p></div>
+</section>
+<section id="notice" class="tab" role="tabpanel" aria-labelledby="noticeTab">
+  <div class="section-heading"><span class="eyebrow">READY TO PAY</span><h1>选好了，提醒你。</h1><p>生成待支付订单后，提醒你完成付款。</p></div>
+  <div class="notice-card"><span class="notice-icon" aria-hidden="true">✓</span><div><b>电脑通知</b><p>随神器运行，无需单独配置。</p></div></div>
+  <div class="settings-card"><h2>推送到 iPhone</h2><p>Bark 可稍后配置，密钥只加密保存在本机。</p><label>Bark key<input id="barkKey" type="password" autocomplete="off" placeholder="粘贴你的 Bark key"></label><button id="saveBark" class="primary wide">保存手机推送设置</button><button id="testNotice" class="wide">发送一条测试通知</button><p id="barkState" class="hint"></p></div>
+  <details class="utilities"><summary>连接检查与桌面入口</summary><button id="diagnostics" class="wide">检查连接</button><button id="shortcut" class="wide">添加桌面快捷方式</button><p id="diagnosticResult" class="hint"></p></details>
+</section>
+<p id="message" class="message" role="status" aria-live="polite" hidden></p>
+<footer><span class="footer-dot" aria-hidden="true"></span>只到待支付 · 付款由你完成<details><summary>配料与使用说明</summary><p>菜名筛选不能保证完整配料，请核对商家说明。必须实际用券且券后含配送不超预算；状态不明时停止，不重复提交。真实账号完整下单仍待验证，首次请在旁观察。右侧是美团官方页面，登录、验证码、地址和付款由本人处理。</p></details></footer>
+</main>
+<div id="mealAction" class="meal-action" hidden>    <label class="consent meal-consent"><input id="mealConsent" type="checkbox"><span>我已核对右侧账号与地址，授权按上述需求、预算并实际用券后创建1笔待支付订单，由我付款。</span></label>
+    <p id="startHint" class="start-hint">先确认账号与配送地址，再勾选本次授权。</p><button id="startMeal" class="primary wide main-action" disabled>开始选餐</button>
+</div>
+<script src="guard-data.js"></script><script src="policy.js"></script><script src="schedule.js"></script><script src="worker.js"></script><script src="desktop.js"></script>
+</body></html>

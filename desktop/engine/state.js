@@ -63,6 +63,14 @@ if(typeof importScripts==='function')importScripts('guard-data.js','policy.js','
       }
       if(message.type==='test_notifications'&&isOptions)return {ok:true,...await notify('神器 · 通知测试','定时点餐通知连接测试，当前未创建订单。',null,'test')};
       if(message.type==='schedule_check')return {ok:true,run:validRun(state,sender,message.id)};
+      if(message.type==='schedule_attention'){
+        const run=validRun(state,sender,message.id);
+        if(run.stage!=='menu'||state.submissionAttempt)throw Error('当前不是等待餐品规格的阶段');
+        if(run.attentionNotified)return {ok:true,duplicate:true};
+        await api.storage.local.set({activeRun:{...run,attentionNotified:true}});
+        await notify('神器 · 需要你确认规格','请在电脑右侧官方弹窗核对规格并只加入1份，再在左侧核对并继续。目前尚未确认新的待支付订单。');
+        return {ok:true};
+      }
       if(message.type==='schedule_stage'){
         const run=validRun(state,sender,message.id);
         if(!['home','menu','preview'].includes(message.stage))throw Error('无效任务阶段');
@@ -98,7 +106,10 @@ if(typeof importScripts==='function')importScripts('guard-data.js','policy.js','
         await notify('神器 · 外卖待支付',`订单号：${r.orderId}\n待支付：${P.money(r.total)}\n请在平台有效期内付款。`,r.url,'unpaid',order);
         return {ok:true};
       }
-      if(message.type==='clear'&&message.reviewed===true){await api.storage.local.remove(['submissionAttempt','attemptMeta']);return {ok:true};}
+      if(message.type==='clear'&&message.reviewed===true){
+        if(state.activeRun&&!['done','failed','stopped'].includes(state.activeRun.stage))throw Error('当前任务仍在进行，请先暂停，再核对官方订单后解除防重记录');
+        await api.storage.local.remove(['submissionAttempt','attemptMeta']);return {ok:true};
+      }
       throw Error('未知操作');
     }
     async function tick(){

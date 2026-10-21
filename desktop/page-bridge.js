@@ -25,6 +25,7 @@
     const status=shadow?.getElementById('status')?.textContent||'';
     native.postMessage({channel:'page-status',status:status.slice(0,300),route:location.pathname,
       foods:globalThis.ShenqiAdapter?.create(document).cards().length||0,
-      loginNeeded:/登录后|立即登录|手机号登录/.test(document.body?.innerText?.slice(0,500)||'')});
+      pendingSpecs:!!shadow?.getElementById('verify')&&!shadow.getElementById('verify').hidden,
+      loginNeeded:/未登录|登录后|立即登录|手机号登录/.test(document.body?.innerText?.slice(0,500)||'')});
   },2000);
 })();

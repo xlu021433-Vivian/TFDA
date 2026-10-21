@@ -26,7 +26,7 @@
     return '';
   }
   function supported(url) {
-    try { const u = new URL(url); return u.protocol === 'https:' && u.hostname === 'h5.waimai.meituan.com'; }
+    try { const u = new URL(url); return u.protocol === 'https:' && u.hostname === 'h5.waimai.meituan.com' && !u.port && !u.username && !u.password; }
     catch { return false; }
   }
   function checkPlan(items, budget) {
@@ -105,7 +105,7 @@
   }
   function describe(request, fallbackBudget) {
     const choices=request.keywords?.join('')||request.category||'随机正餐';
-    return `已识别：${choices} × ${request.quantity}；含配送预算 ${money(request.budget??fallbackBudget)}${request.options?'；'+Object.values(request.options).join('、'):''}。不吃猪肉，必须用券。`;
+    return `已理解：${choices} × ${request.quantity}，含配送预算 ${money(request.budget??fallbackBudget)}${request.options?'；'+Object.values(request.options).join('、'):''}`;
   }
   function matches(item,request){
     if(request.category&&!categories[request.category].test(item.name))return false;

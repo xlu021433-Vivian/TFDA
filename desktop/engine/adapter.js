@@ -59,8 +59,9 @@
       const item = findItem(pending.key), current = cart();
       return item?.quantity === pending.quantity + 1 && current.count === pending.cartCount + 1;
     }
-    async function add(key, budget, {requireSpecs=false}={}) {
+    async function add(key, budget, {requireSpecs=false,shouldStop=()=>false}={}) {
       ensure();
+      const checkStop=()=>{if(shouldStop())throw Error('已停止后续加购');};checkStop();
       if (uncertain) throw Error('上次加购结果未确认，请先在官方购物车核对；不要重复加购');
       if (specDialog()) throw Error('请先完成或关闭官方规格弹窗');
       let item = findItem(key);
@@ -72,6 +73,7 @@
       item.element.scrollIntoView?.({block: 'center', behavior: 'instant'});
       // Controls are mounted lazily when a card enters the viewport. Wait before clicking.
       const control = await waitFor(() => {
+        checkStop();
         item = findItem(key);
         const group = item?.element.querySelector('.sqt-menu-add-buttons');
         const plus = group?.querySelector('[aria-label="选择规格"], [aria-label="加入购物车"]') ||
@@ -86,6 +88,7 @@
       if (item.quantity !== pending.quantity || cart().count !== pending.cartCount) throw Error('购物车在操作前已变化，请先重新核对');
       let clicked = false;
       try {
+        checkStop();
         clicked = true;
         control.click(); // Exactly one mutating click. A timeout is never retried.
         const result = await waitFor(() => verify(pending) ? 'added' : specDialog() ? 'specs' : null, pending.scope);
@@ -99,8 +102,9 @@
       dialog?.querySelector('button[aria-label="关闭商品规格选择弹窗"]')?.click();
       return true;
     }
-    function checkout(items, budget) {
+    function checkout(items, budget, shouldStop=()=>false) {
       ensure();
+      if(shouldStop())throw Error('已停止结算');
       if (uncertain || specDialog()) throw Error('请先核对加购结果并关闭官方规格弹窗');
       policy.checkPlan(items, budget);
       const current = cards(), basket = cart();
@@ -113,6 +117,7 @@
       if (basket.count !== expected) throw Error('购物车还有其他商品或数量不符，请先在官方购物车核对');
       const button = leaf('去结算');
       if (!button) throw Error('尚未达到起送价，或平台未提供结算入口');
+      if(shouldStop())throw Error('已停止结算');
       button.click(); // This opens preview only. No submit/payment control is ever selected.
     }
     function previewTotal() {
@@ -146,7 +151,7 @@
       const stop=()=>{if(shouldStop()) throw Error('已停止后续选券');};
       stop();
       let row=couponRows()[0].element;
-      if(!row) throw Error('未识别到美团红包入口，请在官方页面选券');
+      if(row){
       row.click();
       await waitPreview(()=>leaf('可使用红包') || leaf('不可使用红包'));
       stop();
@@ -164,19 +169,19 @@
       }
       const unusable=leaf('不可使用红包');
       const candidates=[...doc.querySelectorAll('.cell-wrapper')].filter(cell=>visible(cell) && (!unusable || !!(cell.compareDocumentPosition(unusable)&win.Node.DOCUMENT_POSITION_FOLLOWING)) && !/本单不可用原因|免费膨胀/.test(text(cell))).map(cell=>({cell,amount:policy.price(text(cell.querySelector('.price-amount-container')))})).filter(x=>x.amount>0).sort((a,b)=>b.amount-a.amount);
-      if(!candidates.length) throw Error('没有可直接使用的红包，请在官方页面核对；无券不下单');
       // Clicking an already selected card can toggle it off. Confirm first; if no discount was applied, select once.
       const target=candidates[0];
       const confirm=leaf('确认'); if(!confirm) throw Error('未识别红包确认入口');
       stop(); confirm.click();
-      await waitPreview(()=>!leaf('可使用红包'));
-      if(couponRows()[0].discount<target.amount) {
+      await waitPreview(()=>!leaf('可使用红包')&&!leaf('不可使用红包'));
+      if(target && couponRows()[0].discount<target.amount) {
         stop(); couponRows()[0].element.click(); await waitPreview(()=>leaf('可使用红包'));
         const fresh=[...doc.querySelectorAll('.cell-wrapper')].find(cell=>text(cell.querySelector('.price-amount-container'))===text(target.cell.querySelector('.price-amount-container')) && text(cell.querySelector('.coupon-wrapper'))===text(target.cell.querySelector('.coupon-wrapper')));
         if(!fresh) throw Error('红包列表已变化，请重新核对');
         stop(); fresh.querySelector('.coupon-wrapper')?.click();
-        const done=leaf('确认'); if(!done) throw Error('未识别红包确认入口'); done.click();
+        const done=leaf('确认'); if(!done) throw Error('未识别红包确认入口'); stop();done.click();
         await waitPreview(()=>couponRows()[0].discount>=target.amount && !leaf('可使用红包'));
+      }
       }
       stop();
       row=couponRows()[1];
@@ -189,7 +194,7 @@
         const indicator=merchant.cell.querySelector('[class^="select_"]');
         if(!indicator) throw Error('无法核对商家券勾选状态');
         stop(); if(/canceled_/.test(indicator.className)) merchant.cell.click();
-        const done=leaf('确定'); if(!done) throw Error('未识别商家券确认入口'); done.click();
+        const done=leaf('确定'); if(!done) throw Error('未识别商家券确认入口'); stop();done.click();
         await waitPreview(()=>!leaf('可用店铺券') && couponRows()[1].discount>0);
       }
       const coupons=couponRows();
@@ -220,7 +225,8 @@
       }).filter(item=>item.name&&!tried.includes(item.name)&&!policy.inspectName(item.name)&&! /药房|药店|药品|医院|门诊|快递电商|烟酒|鲜花|数码|日百|宠物|生日蛋糕/.test(item.name)&&!/休息中|暂停营业|超出配送/.test(item.body)&&item.minimum!==null&&item.delivery!==null&&item.minimum+item.delivery<=budget&&(category?true:!/奶茶|咖啡|茶姬|奶白|喜茶|奈雪|甜品|蛋糕|一点点|1点点/.test(item.name)))
         .filter(item=>!['奶茶','果茶','咖啡'].includes(category)||(category==='咖啡'?/咖啡|瑞幸|库迪|星巴克|Manner|Costa/i:/茶|奶|蜜雪|古茗|沪上|一点点|1点点|CoCo|益禾|甜啦/i).test(item.name));
     }
-    async function confirmDefaultSpecs(pending,budget,request={}){
+    async function confirmDefaultSpecs(pending,budget,request={},shouldStop=()=>false){
+      const checkStop=()=>{if(shouldStop())throw Error('已停止规格选择和加购');};checkStop();
       ensure(pending.scope);const item=findItem(pending.key),dialog=specDialog();
       if(!item||!dialog||item.quantity!==pending.quantity||cart().count!==pending.cartCount)throw Error('规格或购物车已变化，停止默认规格加购');
       let groups=[...dialog.querySelectorAll('[data-tag="attribute"]')];
@@ -231,14 +237,15 @@
         choices.push({kind,label,...matching[0]});
       }
       for(const choice of choices){
+        checkStop();
         ensure(pending.scope);
         if(!choice.el.isConnected||cart().count!==pending.cartCount)throw Error('规格列表或购物车已变化，请本人核对');
         if(!/\bselected_/.test(choice.el.className))choice.el.click();
       }
       if(choices.length){
-        const confirmed=await waitFor(()=>choices.every(choice=>{
+        const confirmed=await waitFor(()=>{checkStop();return choices.every(choice=>{
           return [...choice.group.querySelectorAll('[class*="selected_"]')].filter(el=>policy.optionMatches(choice.kind,choice.label,text(el))).length===1;
-        }),pending.scope);
+        });},pending.scope);
         if(!confirmed)throw Error('指定规格未确认选中，请本人核对；没有点击确认加购');
       }
       groups=[...dialog.querySelectorAll('[data-tag="attribute"]')];
@@ -252,9 +259,11 @@
       if(!amounts.length||new Set(amounts).size!==1||amounts[0]>budget)throw Error('规格价格无法唯一核对或超过预算，请本人处理');
       const button=dialog.querySelector('[class^="addToCartBtn_"], [class*=" addToCartBtn_"]')||dialog.querySelector('[aria-label="加入购物车"]');
       if(!button||!visible(button)||(text(button)!=='加入购物车'&&button.getAttribute('aria-label')!=='加入购物车')||/plusGrey_/.test(button.className)||button.getAttribute('aria-disabled')==='true')throw Error('未识别到规格确认加购入口');
+      checkStop();
       (button.querySelector('[class^="clickArea_"], [class*=" clickArea_"]')||button).click();
       const verified=await waitFor(()=>verify(pending),pending.scope);
       if(!verified){uncertain=true;throw Error('默认规格加购结果不明，不会重试');}
+      checkStop();
       verifyManual(pending);return true;
     }
     let submitted=false;
