@@ -12,7 +12,7 @@ SDK_SHA='56f7f4b8bf9aee4b8efefbbdd4f67d5f74ebd1b100ed0806da71bf76af481aa9'
 ENGINE=('guard-data.js','policy.js','schedule.js','adapter.js','styles.js','content.js','watch.js')
 
 def engine(name):
-    return subprocess.check_output(['git','show','HEAD:waimai-helper/browser-extension/'+name],cwd=ROOT)
+    return (ROOT/'desktop'/'engine'/name).read_bytes()
 
 def worker():
     source=engine('state.js').decode('utf-8')
@@ -25,9 +25,11 @@ def worker():
         if(state.submissionAttempt)throw Error('上次提交尚未核对，请先查看官方订单');
         if(state.activeRun&&!['done','failed','stopped'].includes(state.activeRun.stage))throw Error('当前点餐尚未结束，请先暂停或等待');
         const config=S.validate(message.schedule);if(!config.authorized)throw Error('请先确认本次账号、地址和点餐授权');
+        let menu=null;
+        if(message.currentMenu){menu=new URL(message.currentMenu);if(!P.supported(menu.href)||menu.port||menu.pathname!=='/waimai/mindex/menu'||!menu.searchParams.get('poi_id_str'))throw Error('当前商家链接无法核对');}
         const tab=await api.tabs.create({url:'about:blank',active:true}),id=crypto.randomUUID(),date=S.clock(now()).date;
-        await api.storage.local.set({activeRun:{id,date,tabId:tab.id,stage:'home',tried:[],minimum:0,startedAt:now(),deadline:now()+8*60*1000,config,merchant:null,expected:null,oneShot:true}});
-        await api.tabs.update(tab.id,{url:'https://h5.waimai.meituan.com/waimai/mindex/home'});return {ok:true};
+        await api.storage.local.set({activeRun:{id,date,tabId:tab.id,stage:menu?'menu':'home',currentShop:!!menu,tried:[],minimum:0,startedAt:now(),deadline:now()+8*60*1000,config,merchant:null,expected:null,oneShot:true}});
+        await api.tabs.update(tab.id,{url:menu?menu.href:'https://h5.waimai.meituan.com/waimai/mindex/home'});return {ok:true};
       }
 """
     source=source.replace(marker,branch+marker)
@@ -65,4 +67,4 @@ def build(package,output):
     print(json.dumps({'exe':str(executable),'bytes':executable.stat().st_size,'sha256':digest,'sdk':SDK},ensure_ascii=False))
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/'dist/desktop-0.4.1');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/'dist/desktop-0.4.2');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())

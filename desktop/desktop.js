@@ -18,6 +18,14 @@
   async function action(fn){try{await fn();await refresh();}catch(error){tell(error.message,true);}}
   function config(enabled){return {enabled,time:$('time').value,weekdays:[...document.querySelectorAll('[name=day]:checked')].map(x=>Number(x.value)),budget:ShenqiPolicy.cents($('scheduleBudget').value),request:$('scheduleRequest').value,anyShop:true,merchants:[],authorized:$('scheduleConsent').checked,defaultSpecs:true};}
   let hydrated=false;
+  function interpret(){
+    try{
+      const parsed=ShenqiPolicy.intent($('request').value);
+      $('intentResult').textContent=ShenqiPolicy.describe(parsed,ShenqiPolicy.cents($('budget').value));
+      $('intentResult').style.color='var(--brand)';
+      return parsed;
+    }catch(error){$('intentResult').textContent=error.message;$('intentResult').style.color='var(--bad)';return null;}
+  }
   async function refresh(){
     state=await storage.get(['schedule','activeRun','submissionAttempt','attemptMeta','lastOrder','notificationStatus']);
     nativeStatus=await rpc('status');
@@ -25,7 +33,8 @@
     const run=state.activeRun,active=run&&!['failed','done','stopped'].includes(run.stage);
     const currentOrder=state.submissionAttempt&&state.attemptMeta&&state.lastOrder&&state.lastOrder.time>=state.attemptMeta.time&&state.lastOrder.date===state.attemptMeta.date?state.lastOrder:null;
     $('requestForm').hidden=!!active||!!state.submissionAttempt;
-    $('startMeal').disabled=!page.ready||!$('mealConsent').checked||!!state.submissionAttempt||!!active;
+    $('startMeal').disabled=!interpret()||!page.ready||!$('mealConsent').checked||!!state.submissionAttempt||!!active;
+    $('startMeal').textContent=page.url&&new URL(page.url).pathname==='/waimai/mindex/menu'?'在右侧这家店点餐':'帮我随机选店点餐';
     const budget=ShenqiPolicy.cents($('budget').value);$('budgetSummary').innerHTML=budget!==null?'¥'+Math.floor(budget/100)+'<span>.'+String(budget%100).padStart(2,'0')+'</span>':'—';
     $('connection').textContent=page.error?'网页暂时无法打开':page.ready?'内置网页已连接':'正在等待官方网页';
     $('dot').className='dot '+(page.error?'bad':page.ready?'good':'');
@@ -53,7 +62,7 @@
     if(data.channel==='tick'){serial=serial.then(()=>runtime.tick()).then(refresh).catch(error=>tell(error.message,true));}
   });
   for(const button of document.querySelectorAll('nav button'))button.onclick=()=>{for(const b of document.querySelectorAll('nav button'))b.classList.toggle('active',b===button);for(const tab of document.querySelectorAll('.tab'))tab.classList.toggle('active',tab.id===button.dataset.tab);};
-  $('mealConsent').onchange=()=>refresh().catch(()=>{});$('budget').oninput=()=>{ $('mealConsent').checked=false;refresh().catch(()=>{}); };$('request').oninput=()=>{$('mealConsent').checked=false;try{const input=ShenqiPolicy.intent($('request').value);if(input.budget!==null)$('budget').value=(input.budget/100).toFixed(2);}catch{}refresh().catch(()=>{});};
+  $('mealConsent').onchange=()=>refresh().catch(()=>{});$('budget').oninput=()=>{ $('mealConsent').checked=false;refresh().catch(()=>{}); };$('request').oninput=()=>{$('mealConsent').checked=false;const input=interpret();if(input?.budget!==null&&input?.budget!==undefined)$('budget').value=(input.budget/100).toFixed(2);refresh().catch(()=>{});};
   $('home').onclick=()=>action(()=>rpc('navigate',{url:'https://h5.waimai.meituan.com/waimai/mindex/home'}));
   $('reload').onclick=()=>action(()=>rpc('reload'));
   $('startMeal').onclick=()=>action(async()=>{
@@ -61,7 +70,8 @@
     const intent=ShenqiPolicy.intent($('request').value),budget=ShenqiPolicy.cents($('budget').value);
     if(intent.budget!==null&&intent.budget!==budget)throw Error('输入中的预算与预算框不一致，请核对后重新授权');
     $('startMeal').disabled=true;
-    await message({type:'start_now',schedule:{...ShenqiSchedule.defaults,enabled:true,authorized:true,budget,request:$('request').value,anyShop:true,defaultSpecs:true}});
+    const currentMenu=page.url&&new URL(page.url).pathname==='/waimai/mindex/menu'?page.url:null;
+    await message({type:'start_now',currentMenu,schedule:{...ShenqiSchedule.defaults,enabled:true,authorized:true,budget,request:$('request').value,anyShop:true,defaultSpecs:true}});
     $('mealConsent').checked=false;
     tell('本次点餐已开始。无券或超预算会暂停，付款由你完成。');
   });

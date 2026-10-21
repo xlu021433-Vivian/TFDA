@@ -4,9 +4,9 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const crypto=require('node:crypto');
-const folder=path.resolve(process.env.SHENQI_DESKTOP_ASSETS||'dist/desktop-0.4.1/assets');
+const folder=path.resolve(process.env.SHENQI_DESKTOP_ASSETS||'dist/desktop-0.4.2/assets');
 const P=require(path.join(folder,'policy.js')),S=require(path.join(folder,'schedule.js'));
-const sandbox={ShenqiPolicy:P,ShenqiSchedule:S,Date,crypto,structuredClone};
+const sandbox={ShenqiPolicy:P,ShenqiSchedule:S,Date,crypto,structuredClone,URL};
 vm.runInNewContext(fs.readFileSync(path.join(folder,'worker.js'),'utf8'),sandbox);
 function setup(initial={}){
   const data=structuredClone(initial),tabs=[],notifications=[];
@@ -42,4 +42,12 @@ test('pause stops the one-shot permission; failed persistence cannot navigate or
 test('coupon, pork and real-order parsing guards are retained',()=>{
   assert.equal(P.previewVerdict(1500,2500,[]).ok,false);assert.equal(P.previewVerdict(3000,2500,[{discount:300}]).ok,false);
   assert.ok(P.inspectName('猪肉饭'));assert.equal(P.inspectName('牛肉饭'),'');assert.equal(S.unpaid({body:{cloneNode(){throw Error('must not inspect nonofficial');}}},'https://example.com/pay'),null);
+});
+test('starting inside the selected merchant retains it and rejects foreign menu URLs',async()=>{
+  const f=setup(),url='https://h5.waimai.meituan.com/waimai/mindex/menu?poi_id_str=fixture';
+  await f.runtime.message({...request,currentMenu:url},f.panel);
+  assert.equal(f.data.activeRun.stage,'menu');assert.equal(f.data.activeRun.currentShop,true);assert.equal(f.tabs[0].url,url);
+  for(const currentMenu of ['https://example.com/waimai/mindex/menu?poi_id_str=x','https://h5.waimai.meituan.com:8443/waimai/mindex/menu?poi_id_str=x','https://h5.waimai.meituan.com/waimai/mindex/menu']){
+    const g=setup();await assert.rejects(g.runtime.message({...request,currentMenu},g.panel));assert.equal(g.tabs.length,0);
+  }
 });
