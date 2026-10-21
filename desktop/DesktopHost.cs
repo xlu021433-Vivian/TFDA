@@ -145,7 +145,7 @@ internal sealed class DesktopHost : Form
             case "storage_set":store.Change((Dictionary<string,object>)args["change"]);return new {ok=true};
             case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);return new {ok=true};
             case "panel_ready":panelReady.TrySetResult(true);return new {ok=true};
-            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.4.2"};
+            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.4.3"};
             case "navigate":
                 string url=Convert.ToString(args["url"]);if(!AllowedNavigation(url))throw new IOException("只允许打开美团官方 HTTPS 网页。");official.Source=new Uri(url);return new {id=1};
             case "reload":if(official.CoreWebView2!=null)official.CoreWebView2.Reload();return new {ok=true};
@@ -166,7 +166,7 @@ internal sealed class DesktopHost : Form
                 return new {ok=true};
             case "notify":return await Notify(args);
             case "diagnostics":
-                return new {message="程序：0.4.2\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
+                return new {message="程序：0.4.3\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
             default:throw new IOException("不支持此操作。");
         }
     }
@@ -239,9 +239,12 @@ internal sealed class DesktopHost : Form
         var reloaded=new LocalStore(Bootstrap.Root);if(!reloaded.Engine.ContainsKey("lastOrder"))throw new IOException("点餐记录未持久保存。");
         string file=Path.Combine(Bootstrap.Root,"settings.dpapi");if(Encoding.UTF8.GetString(File.ReadAllBytes(file)).Contains("TEST202610200001"))throw new IOException("本机状态未加密。");
         await panel.CoreWebView2.ExecuteScriptAsync("Desktop.inspect()");await Task.Delay(400);
+        await Inject();
+        string singleSurface=await official.CoreWebView2.ExecuteScriptAsync("(()=>{const host=document.getElementById('shenqi-waimai-assistant');return !!host&&getComputedStyle(host).display==='none'&&host.getClientRects().length===0&&host.getAttribute('aria-hidden')==='true';})()");
+        if(singleSurface!="true")throw new IOException("右侧仍有重复的助手界面。");
         using(var left=new FileStream(Path.Combine(Bootstrap.Root,"panel.png"),FileMode.Create))await panel.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,left);
         using(var right=new FileStream(Path.Combine(Bootstrap.Root,"official-fixture.png"),FileMode.Create))await official.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,right);
-        WriteReport(new {ok=true,sourceGuards=true,embeddedBrowser=true,fullFixtureFlow=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="TEST202610200001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
+        WriteReport(new {ok=true,sourceGuards=true,embeddedBrowser=true,fullFixtureFlow=true,singleAssistantSurface=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="TEST202610200001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
         ExitCode=0;Close();
     }
     string Fixture(string path)

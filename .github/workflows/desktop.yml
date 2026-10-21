@@ -31,7 +31,7 @@ jobs:
         run: |
           $profile = Join-Path $env:RUNNER_TEMP ('shenqi-'+[guid]::NewGuid())
           $report = Join-Path $env:RUNNER_TEMP 'shenqi-result.json'
-          $exe = (Resolve-Path dist/desktop-0.4.2/Shenqi-Desktop.exe).Path
+          $exe = (Resolve-Path dist/desktop-0.4.3/Shenqi-Desktop.exe).Path
           $job = Start-Process $exe -ArgumentList @('--self-test','--data-dir',('"'+$profile+'"'),'--report',('"'+$report+'"')) -WindowStyle Hidden -PassThru
           if (-not $job.WaitForExit(120000)) { $job.Kill(); throw 'Desktop verification timeout' }
           if (Test-Path $report) { Get-Content $report }

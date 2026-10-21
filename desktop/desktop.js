@@ -42,7 +42,7 @@
     if(page.error)$('pageStatus').textContent=page.error;
     let title='先在右侧登录并核对地址',detail='确认当前账号与配送地址后，勾选本次授权，再点击“帮我点这一餐”。',kind='';
     if(active){title=({home:'正在随机选店',menu:'正在选餐与加购',preview:'正在核对用券与预算'})[run.stage]||'正在处理这一餐';detail=page.status||'正在等待官方页面提供可核对的信息。';}
-    else if(run?.stage==='failed'){title='本次已暂停';detail=run.reason+'。已加购的商品请在官方购物车核对；不会重复提交。';kind='bad';}
+    else if(run?.stage==='failed'){title='上次任务已暂停';detail=run.reason+'。已加购的商品请在官方购物车核对；不会重复提交。';kind='bad';}
     else if(state.submissionAttempt&&!currentOrder){title='已尝试提交，等待官方结果';detail='请查看右侧或手机美团订单，未确认真实订单号前不会显示成功，也不会重试。';}
     else if(page.ready){title=page.loginNeeded?'请先登录美团':'网页已连接，可以准备这一餐';detail=page.status||detail;}
     if(currentOrder){title='已识别本次待支付订单';detail='请在平台有效期内本人付款；实时状态以官方页面为准。';kind='good';}

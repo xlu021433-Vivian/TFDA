@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const crypto=require('node:crypto');
-const folder=path.resolve(process.env.SHENQI_DESKTOP_ASSETS||'dist/desktop-0.4.2/assets');
+const folder=path.resolve(process.env.SHENQI_DESKTOP_ASSETS||'dist/desktop-0.4.3/assets');
 const P=require(path.join(folder,'policy.js')),S=require(path.join(folder,'schedule.js'));
 const sandbox={ShenqiPolicy:P,ShenqiSchedule:S,Date,crypto,structuredClone,URL};
 vm.runInNewContext(fs.readFileSync(path.join(folder,'worker.js'),'utf8'),sandbox);

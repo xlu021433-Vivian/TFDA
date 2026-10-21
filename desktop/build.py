@@ -41,10 +41,11 @@ def build(package,output):
     output.mkdir(parents=True,exist_ok=True)
     assets=output/'assets';assets.mkdir(exist_ok=True)
     files={name:engine(name) for name in ENGINE}
-    # Desktop panel remains the visible control surface; keep engine details collapsed for specification recovery.
+    # The native left pane is the only assistant surface. Keep the reused engine's
+    # internal controls out of layout and accessibility, including reinjection.
     original=b'  document.documentElement.appendChild(host);'
     assert files['content.js'].count(original)==1
-    files['content.js']=files['content.js'].replace(original,b"  shadow.querySelector('.panel').classList.add('collapsed');\n  shadow.getElementById('collapse').textContent='\\u5c55\\u5f00';\n"+original)
+    files['content.js']=files['content.js'].replace(original,b"  host.style.setProperty('display','none','important');\n  host.setAttribute('aria-hidden','true');\n"+original)
     for name in ('options.html','desktop.css','desktop.js','page-bridge.js'):
         files[name]=(ROOT/'desktop'/name).read_bytes()
     files['worker.js']=worker()
@@ -67,4 +68,4 @@ def build(package,output):
     print(json.dumps({'exe':str(executable),'bytes':executable.stat().st_size,'sha256':digest,'sdk':SDK},ensure_ascii=False))
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/'dist/desktop-0.4.2');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/'dist/desktop-0.4.3');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())

@@ -21,8 +21,7 @@
   });
   setInterval(()=>{
     const host=document.getElementById('shenqi-waimai-assistant'),shadow=host?.shadowRoot;
-    // Keep the reused engine's controls available for manual specification recovery.
-    if(host){host.style.top='12px';host.style.right='12px';}
+    // Report the internal engine status to the sole assistant UI in the left pane.
     const status=shadow?.getElementById('status')?.textContent||'';
     native.postMessage({channel:'page-status',status:status.slice(0,300),route:location.pathname,
       foods:globalThis.ShenqiAdapter?.create(document).cards().length||0,
