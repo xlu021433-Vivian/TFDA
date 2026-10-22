@@ -61,11 +61,11 @@ def build(package,output):
     command=[str(compiler),'/nologo','/target:winexe','/platform:x64','/optimize+','/out:'+str(executable)]
     command+=['/reference:'+name for name in references]
     command+=['/resource:'+str(assets/name)+',Shenqi.'+name for name in [*files,'runtime-files.json']]
-    command += [str(ROOT/'desktop/Bootstrap.cs'),str(ROOT/'desktop/DesktopHost.cs')]
+    command += [str(ROOT/'desktop/Bootstrap.cs'),str(ROOT/'desktop/DesktopHost.cs'),str(ROOT/'desktop/RemoteLink.cs')]
     subprocess.run(command,check=True)
     digest=hashlib.sha256(executable.read_bytes()).hexdigest()
     (output/'SHA256SUMS.txt').write_text(digest+'  '+executable.name+'\n',encoding='ascii')
     print(json.dumps({'exe':str(executable),'bytes':executable.stat().st_size,'sha256':digest,'sdk':SDK},ensure_ascii=False))
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/'dist/desktop-0.5.4');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/'dist/desktop-0.6.0');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())

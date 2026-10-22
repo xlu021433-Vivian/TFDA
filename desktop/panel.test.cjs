@@ -54,3 +54,20 @@ test('the stop command is still sent while another action is busy',async t=>{
   let finish;const pending=new Promise(resolve=>{finish=resolve;});const f=await panel(t,{initial:{activeRun:{id:'busy',stage:'menu',config:S.defaults}},handle:async body=>body.type==='configure_schedule'?pending:{ok:true}});
   f.$('saveSchedule').click();await pause();f.$('stop').click();await pause();assert.ok(f.nativeCalls.some(x=>x.action==='page_command'&&x.args.body.type==='stop_scheduled'));finish({ok:true});await pause();
 });
+test('remote meals require the local opt-in and reuse budget, login and duplicate guards',async t=>{
+  const f=await panel(t);
+  const input={id:'fixture-id',kind:'meal',request:'想吃河粉 25元预算 一份',budget:2500,authorized:true};
+  assert.equal((await f.w.Desktop.remoteCommand(input)).ok,false);
+  assert.equal(f.messages.length,0);
+  const source=fs.readFileSync(path.join(__dirname,'desktop.js'),'utf8');
+  assert.match(source,/!nativeStatus.remoteEnabled/);
+  assert.match(source,/intent\.budget!==null&&intent\.budget!==budget/);
+  const state=f.w.Desktop.remoteStatus();assert.equal(state.ready,true);
+  assert.equal('barkKey' in state,false);assert.equal('preferences' in state,false);
+});
+test('remote pause is available without initiating or enabling a meal',async t=>{
+  const f=await panel(t,{initial:{activeRun:{id:'remote',stage:'menu',config:S.defaults}}});
+  const result=await f.w.Desktop.remoteCommand({id:'stop-fixture',kind:'stop'});
+  assert.equal(result.ok,true);assert.ok(f.nativeCalls.some(x=>x.action==='page_command'&&x.args.body.type==='stop_scheduled'));
+  assert.equal(f.messages.filter(x=>x.type==='start_now').length,0);
+});

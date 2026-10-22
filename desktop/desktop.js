@@ -87,13 +87,16 @@
     $('historyDetail').textContent=run?.stage==='failed'?(run.reason||'上次点餐未完成')+'。已加购商品请在官方购物车核对。':run?.stage==='stopped'?(run.reason||'上次点餐已由你暂停。已加购商品请在官方购物车核对。'):'';
     $('scheduleState').textContent=state.schedule?.enabled?'已启用 · 北京时间 '+state.schedule.time+' · 券后含配送 '+ShenqiPolicy.money(state.schedule.budget):'当前未启用，到点不会自动下单。';
     $('barkState').textContent=nativeStatus.barkConfigured?'已保存手机推送设置。'+(nativeStatus.lastBark===true?'最近一次推送已被Bark服务接受，请在手机确认收到。':nativeStatus.lastBark===false?'最近一次推送失败，请检查key和网络。':'可以发送测试通知，确认手机能收到。'):'尚未设置手机推送，电脑通知仍可使用。';
-    for(const id of ['saveSchedule','saveBark','testNotice','diagnostics','shortcut'])$(id).disabled=actionBusy||stopping;
+    $('remoteState').textContent=nativeStatus.remoteEnabled?'已允许 L5 管理员账号发送选餐和暂停请求。电脑与神器需保持运行。':'手机控制未启用，网页不会执行点餐。';
+    $('resetRemote').disabled=!$('remoteReviewed').checked||actionBusy||stopping||running||!!state.submissionAttempt;
+    for(const id of ['saveSchedule','saveBark','testNotice','diagnostics','shortcut','saveRemote'])$(id).disabled=actionBusy||stopping;
   }
   async function refresh(force=false){
     if(refreshPromise){await refreshPromise;if(!force)return state;}
     refreshPromise=(async()=>{
       const [saved,status]=await Promise.all([storage.get(['schedule','activeRun','submissionAttempt','attemptMeta','lastOrder','notificationStatus']),rpc('status')]);
       state=saved;nativeStatus=status;storageReady=true;
+      if(!hydrated)$('remoteEnabled').checked=!!status.remoteEnabled;
       if(!hydrated){const config=state.schedule||ShenqiSchedule.defaults;$('time').value=config.time;$('scheduleBudget').value=(config.budget/100).toFixed(2);$('scheduleRequest').value=config.request;$('enabled').checked=config.enabled;$('scheduleConsent').checked=config.authorized;for(const item of document.querySelectorAll('[name=day]'))item.checked=config.weekdays.includes(Number(item.value));hydrated=true;}
       render();return state;
     })().catch(error=>{storageReady=false;render();throw error;}).finally(()=>{refreshPromise=null;});
@@ -153,6 +156,33 @@
   $('testNotice').onclick=()=>action(async()=>{const result=await rpc('notify',{id:'shenqi-test',options:{title:'神器 · 通知测试',message:'桌面助手通知测试，没有创建订单。'}});tell(result.bark?'Bark服务已接受推送，请在iPhone确认收到。':result.barkConfigured?'电脑通知已发出，手机推送未确认成功。':'电脑通知已发出，手机推送尚未配置。');});
   $('diagnostics').onclick=()=>action(async()=>{$('diagnosticResult').textContent=(await rpc('diagnostics')).message;});
   $('shortcut').onclick=()=>action(async()=>{await rpc('shortcut');tell('桌面快捷方式已更新，请将本程序保留在固定位置。');});
-  globalThis.Desktop={async tick(){await runtime.tick();await refresh(true);},async inspect(){return {page,state:await refresh(true),native:nativeStatus};},runtime,api};
+  $('remoteReviewed').onchange=render;
+  $('saveRemote').onclick=()=>action(async()=>{if($('remoteEnabled').checked&&!$('remoteConsent').checked)throw Error('请先阅读并勾选手机控制授权。');await rpc('remote_enable',{enabled:$('remoteEnabled').checked});$('remoteConsent').checked=false;tell('手机控制设置已保存。');});
+  $('resetRemote').onclick=()=>action(async()=>{if(!$('remoteReviewed').checked||active()||state.submissionAttempt)throw Error('请先暂停并核对上一笔官方订单、防重记录。');await rpc('remote_reset');$('remoteReviewed').checked=false;tell('远程接收记录已清理，请重新核对后发送需求。');});
+  function remoteStatus(){
+    const run=state.activeRun;
+    const order=state.submissionAttempt&&state.attemptMeta&&state.lastOrder&&state.lastOrder.time>=state.attemptMeta.time&&state.lastOrder.date===state.attemptMeta.date?state.lastOrder:null;
+    return {ready:!!page.ready&&!page.error&&['/waimai/mindex/home','/waimai/mindex/menu','/waimai/mindex/mine'].includes(path()),loginNeeded:!!page.loginNeeded,busy:!!active()||actionBusy||stopping,locked:!!state.submissionAttempt,stage:run?.stage||'idle',message:(page.error||run?.reason||page.status||'请在桌面核对账号和配送地址。').slice(0,300),order:order?{id:order.orderId,amount:order.total,url:order.url}:null};
+  }
+  async function remoteCommand(command){
+    const id=command.id;
+    try{
+      if(command.kind==='stop'){
+        stopping=true;render();
+        try{await rpc('page_command',{body:{type:'stop_scheduled'}});await message({type:'configure_schedule',schedule:{...(state.schedule||ShenqiSchedule.defaults),enabled:false}});$('enabled').checked=false;await refresh(true);}
+        finally{stopping=false;render();}
+        return {id,ok:true};
+      }
+      if(command.kind!=='meal'||!nativeStatus.remoteEnabled||actionBusy||stopping)throw Error('远程控制未就绪，或桌面正在处理其他操作。');
+      if(active()||state.submissionAttempt||!storageReady||!page.ready||page.error||page.loginNeeded||!['/waimai/mindex/home','/waimai/mindex/menu','/waimai/mindex/mine'].includes(path()))throw Error('请先在桌面核对账号、配送地址及上一笔订单。');
+      const intent=ShenqiPolicy.intent(command.request),budget=command.budget;
+      if(!Number.isSafeInteger(budget)||budget<1||budget>100000||intent.budget!==null&&intent.budget!==budget||command.authorized!==true)throw Error('需求、预算或本次授权不一致。');
+      actionBusy=true;$('request').value=command.request;$('budget').value=(budget/100).toFixed(2);$('mealConsent').checked=false;render();
+      try{await message({type:'start_now',currentMenu:path()==='/waimai/mindex/menu'?page.url:null,schedule:{...ShenqiSchedule.defaults,enabled:true,authorized:true,budget,request:command.request,anyShop:true,defaultSpecs:true}});await refresh(true);}
+      finally{actionBusy=false;render();}
+      return {id,ok:true};
+    }catch(error){return {id,ok:false,error:error.message};}
+  }
+  globalThis.Desktop={async tick(){await runtime.tick();await refresh(true);},async inspect(){return {page,state:await refresh(true),native:nativeStatus};},remoteStatus,remoteCommand,runtime,api};
   (async()=>{const initial=await storage.get(['preferences','schedule']);if(!initial.preferences)await storage.set({preferences:{budget:'25.00',mode:'unpaid',expand:true,noPork:true,requireCoupon:true}});await refresh();await runtime.tick();await rpc('panel_ready');setInterval(()=>refresh().catch(error=>tell(error.message,true)),2000);})().catch(error=>tell('无法读取本机设置，点餐保持关闭：'+error.message,true));
 })();

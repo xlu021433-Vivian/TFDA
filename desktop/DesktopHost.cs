@@ -19,6 +19,8 @@ internal sealed class DesktopHost : Form
     readonly Label loading=new Label();
     readonly NotifyIcon tray=new NotifyIcon();
     readonly Timer timer=new Timer();
+    readonly Timer remoteTimer=new Timer();
+    readonly RemoteLink remote;
     readonly CheckBox reading=new CheckBox();
     readonly Label renderStatus=new Label();
     bool wasMinimized,repainting;
@@ -37,24 +39,26 @@ internal sealed class DesktopHost : Form
     internal DesktopHost()
     {
         store=new LocalStore(Bootstrap.Root);
+        remote=new RemoteLink(Bootstrap.Root,store);
+        remote.Enable(false);
         StopInterruptedTask(store);
         Text=Bootstrap.Test?"神器 · 本地模拟验证（不会创建真实订单）":"神器 · 今天这一餐";
         var area=Screen.PrimaryScreen.WorkingArea;
         Width=Math.Min(1320,area.Width-32);Height=Math.Min(900,area.Height-32);
         MinimumSize=new Size(Math.Min(1040,Width),Math.Min(700,Height));StartPosition=FormStartPosition.CenterScreen;
-        BackColor=Color.FromArgb(245,247,243);
+        BackColor=Color.FromArgb(251,243,246);
         var split=new SplitContainer { Size=new Size(1280,850),Dock=DockStyle.Fill,FixedPanel=FixedPanel.Panel1,SplitterWidth=1,SplitterDistance=396,Panel1MinSize=360,Panel2MinSize=560 };
         Controls.Add(split);panel.Dock=DockStyle.Fill;official.Dock=DockStyle.Fill;split.Panel1.Controls.Add(panel);split.Panel2.Controls.Add(official);
-        var officialBar=new Panel {Dock=DockStyle.Top,Height=40,BackColor=Color.FromArgb(245,247,243),Padding=new Padding(16,0,12,0)};
-        officialBar.Controls.Add(new Label {Text="美团 · 官方页面",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Color.FromArgb(100,113,104),Font=new Font("Microsoft YaHei UI",9)});
+        var officialBar=new Panel {Dock=DockStyle.Top,Height=40,BackColor=Color.FromArgb(251,243,246),Padding=new Padding(16,0,12,0)};
+        officialBar.Controls.Add(new Label {Text="美团 · 官方页面",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Color.FromArgb(123,101,115),Font=new Font("Microsoft YaHei UI",9)});
         object savedReading;reading.Checked=!store.Engine.TryGetValue("officialReading",out savedReading)||Convert.ToBoolean(savedReading);
-        reading.Text="舒适排版";reading.Dock=DockStyle.Right;reading.Width=110;reading.Font=new Font("Microsoft YaHei UI",9);reading.ForeColor=Color.FromArgb(33,84,62);
+        reading.Text="舒适排版";reading.Dock=DockStyle.Right;reading.Width=110;reading.Font=new Font("Microsoft YaHei UI",9);reading.ForeColor=Color.FromArgb(163,63,105);
         officialBar.Controls.Add(reading);split.Panel2.Controls.Add(officialBar);officialBar.BringToFront();
         reading.CheckedChanged+=async delegate {store.Change(new Dictionary<string,object>{{"officialReading",reading.Checked}});if(official.CoreWebView2!=null&&IsOfficial(official.Source.AbsoluteUri))await official.CoreWebView2.ExecuteScriptAsync("globalThis.ShenqiReading?.setEnabled("+(reading.Checked?"true":"false")+")");};
-        var recoveryBar=new Panel {Dock=DockStyle.Top,Height=44,BackColor=Color.FromArgb(237,241,233),Padding=new Padding(14,4,14,4)};
-        renderStatus.Text="兼容绘制 · 正在准备网页";renderStatus.Dock=DockStyle.Fill;renderStatus.TextAlign=ContentAlignment.MiddleLeft;renderStatus.ForeColor=Color.FromArgb(100,113,104);renderStatus.Font=new Font("Microsoft YaHei UI",9);
-        var restoreDisplay=new Button {Text="恢复显示",Dock=DockStyle.Right,Width=112,Font=new Font("Microsoft YaHei UI",9),FlatStyle=FlatStyle.Flat,BackColor=Color.White,ForeColor=Color.FromArgb(33,84,62)};
-        restoreDisplay.FlatAppearance.BorderColor=Color.FromArgb(221,233,200);restoreDisplay.Click+=delegate {RestoreWebViews();};
+        var recoveryBar=new Panel {Dock=DockStyle.Top,Height=44,BackColor=Color.FromArgb(243,232,238),Padding=new Padding(14,4,14,4)};
+        renderStatus.Text="兼容绘制 · 正在准备网页";renderStatus.Dock=DockStyle.Fill;renderStatus.TextAlign=ContentAlignment.MiddleLeft;renderStatus.ForeColor=Color.FromArgb(123,101,115);renderStatus.Font=new Font("Microsoft YaHei UI",9);
+        var restoreDisplay=new Button {Text="恢复显示",Dock=DockStyle.Right,Width=112,Font=new Font("Microsoft YaHei UI",9),FlatStyle=FlatStyle.Flat,BackColor=Color.White,ForeColor=Color.FromArgb(163,63,105)};
+        restoreDisplay.FlatAppearance.BorderColor=Color.FromArgb(233,207,221);restoreDisplay.Click+=delegate {RestoreWebViews();};
         recoveryBar.Controls.Add(renderStatus);recoveryBar.Controls.Add(restoreDisplay);
         Controls.Remove(split);var contentHost=new Panel {Dock=DockStyle.Fill,Margin=new Padding(0)};contentHost.Controls.Add(split);
         var frame=new TableLayoutPanel {Dock=DockStyle.Fill,RowCount=2,ColumnCount=1,Margin=new Padding(0),Padding=new Padding(0)};
@@ -69,8 +73,30 @@ internal sealed class DesktopHost : Form
         tray.Icon=SystemIcons.Information;tray.Text="神器 · 关闭窗口会停止定时";tray.Visible=!Bootstrap.Test;
         tray.DoubleClick+=delegate { Show();WindowState=FormWindowState.Normal;Activate(); };
         timer.Interval=30000;timer.Tick+=async delegate { if(initialized)try{await panel.CoreWebView2.ExecuteScriptAsync("Desktop.tick().catch(()=>{});");}catch{} };
+        remoteTimer.Interval=5000;remoteTimer.Tick+=async delegate {if(initialized)await remote.Poll(RemoteInspect,RemoteExecute);};
         Shown+=async delegate { await Initialize(); };
-        FormClosed+=delegate { timer.Stop();tray.Visible=false;tray.Dispose(); };
+        FormClosed+=delegate { timer.Stop();remoteTimer.Stop();tray.Visible=false;tray.Dispose(); };
+    }
+    async Task<Dictionary<string,object>> RemoteInspect()
+    {
+        string raw=await panel.CoreWebView2.ExecuteScriptAsync("Desktop.remoteStatus()");
+        return Bootstrap.Json.Deserialize<Dictionary<string,object>>(raw);
+    }
+    async Task RemoteExecute(Dictionary<string,object> command)
+    {
+        string raw=await panel.CoreWebView2.ExecuteScriptAsync("Desktop.remoteCommand("+Bootstrap.Json.Serialize(command)+").then(value=>{globalThis.remoteResult=value;},error=>{globalThis.remoteResult={ok:false,error:error.message};});null");
+        // ExecuteScriptAsync does not await a JS promise. Wait for this command's
+        // explicit acknowledgement, never fire-and-forget or automatically resend.
+        string id=Convert.ToString(command["id"]);
+        for(int i=0;i<80;i++)
+        {
+            await Task.Delay(250);
+            raw=await panel.CoreWebView2.ExecuteScriptAsync("globalThis.remoteResult||null");
+            var value=Bootstrap.Json.Deserialize<Dictionary<string,object>>(raw);
+            if(value!=null&&Convert.ToString(value["id"])==id)
+            {if(!Convert.ToBoolean(value["ok"]))throw new IOException(Convert.ToString(value["error"]));return;}
+        }
+        throw new IOException("远程任务接收结果超时，需本人核对。");
     }
     void RestoreWebViews()
     {
@@ -190,7 +216,7 @@ internal sealed class DesktopHost : Form
             }
             panel.Source=new Uri("https://shenqi.local/options.html");
             await Task.WhenAny(panelReady.Task,Task.Delay(20000));if(!panelReady.Task.IsCompleted){string detail=await panel.CoreWebView2.ExecuteScriptAsync("JSON.stringify({title:document.title,message:document.getElementById('message')?.textContent,state:document.readyState})");throw new IOException("控制面板启动超时。"+detail+string.Join("；",errors.ToArray()));}
-            loading.Visible=false;initialized=true;RestoreWebViews();timer.Start();official.Source=new Uri(Home);
+            loading.Visible=false;initialized=true;RestoreWebViews();timer.Start();if(!Bootstrap.Test)remoteTimer.Start();official.Source=new Uri(Home);
             if(Bootstrap.Test&&!Bootstrap.Demo)await SelfTest();
         }
         catch(Exception error)
@@ -235,7 +261,10 @@ internal sealed class DesktopHost : Form
             case "storage_set":store.Change((Dictionary<string,object>)args["change"]);return new {ok=true};
             case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);return new {ok=true};
             case "panel_ready":panelReady.TrySetResult(true);return new {ok=true};
-            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.5.4"};
+            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.6.0",remoteEnabled=remote.Enabled};
+            case "remote_enable":
+                if(!(args["enabled"] is bool))throw new IOException("远程开关格式无效。");remote.Enable((bool)args["enabled"]);await remote.Poll(RemoteInspect,RemoteExecute);return new {ok=true};
+            case "remote_reset":await remote.Reset(RemoteInspect);return new {ok=true};
             case "navigate":
                 string url=Convert.ToString(args["url"]);if(!AllowedNavigation(url))throw new IOException("只允许打开美团官方 HTTPS 网页。");official.Source=new Uri(url);return new {id=1};
             case "reload":if(official.CoreWebView2!=null)official.CoreWebView2.Reload();return new {ok=true};
@@ -256,7 +285,7 @@ internal sealed class DesktopHost : Form
                 return new {ok=true};
             case "notify":return await Notify(args);
             case "diagnostics":
-                return new {message="程序：0.5.4\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n绘制模式：软件兼容\n显示恢复次数："+renderRecoveries+"\n桌面控制台错误："+errors.Count};
+                return new {message="程序：0.6.0\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n绘制模式：软件兼容\n显示恢复次数："+renderRecoveries+"\n桌面控制台错误："+errors.Count};
             default:throw new IOException("不支持此操作。");
         }
     }
@@ -310,6 +339,7 @@ internal sealed class DesktopHost : Form
     void WriteReport(object value){if(Bootstrap.Report!=null)File.WriteAllText(Bootstrap.Report,Bootstrap.Json.Serialize(value),new UTF8Encoding(false));}
     async Task SelfTest()
     {
+        await RemoteLink.VerifyTransport(Path.Combine(Bootstrap.Root,"remote-transport-check"));
         if(IsPanel("https://shenqi.local.evil/options.html")||IsPanel("https://shenqi.local:8443/options.html")||IsOfficial("https://h5.waimai.meituan.com.evil/")||AllowedNavigation("file:///C:/test"))throw new IOException("来源校验失败。");
         await Task.Delay(2500);
         await official.CoreWebView2.ExecuteScriptAsync("location.href='shenqi-test://blocked-app-launch'");await Task.Delay(400);
@@ -357,8 +387,14 @@ internal sealed class DesktopHost : Form
         if(await official.CoreWebView2.ExecuteScriptAsync("document.documentElement.hasAttribute('data-shenqi-reading')")!="false")throw new IOException("无法恢复官方原样。");
         if(await official.CoreWebView2.ExecuteScriptAsync("getComputedStyle(document.documentElement).fontSize")!="\"120px\"")throw new IOException("官方原始缩放未恢复。");
         reading.Checked=true;official.Source=new Uri(Home);await Task.Delay(1000);
-        string command="(async()=>{const request=document.getElementById('request');request.value='想吃河粉 25元预算 一份';request.dispatchEvent(new Event('input'));document.getElementById('mealConsent').checked=true;await Desktop.inspect();document.getElementById('startMeal').click();})().catch(e=>document.getElementById('message').textContent=e.message);";
-        await panel.CoreWebView2.ExecuteScriptAsync(command);
+        // Full isolated flow now enters through the same bounded transport used by
+        // the phone page, and reaches the real panel/engine/WebView2 fixtures.
+        remote.Enable(true);await panel.CoreWebView2.ExecuteScriptAsync("Desktop.inspect()");await Task.Delay(400);
+        string remoteDirectory=Path.Combine(Bootstrap.Root,"RemoteBridge");Directory.CreateDirectory(remoteDirectory);
+        long issuedAt=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var remoteCommand=new Dictionary<string,object>{{"version",1},{"id",Guid.NewGuid().ToString()},{"kind","meal"},{"createdAt",issuedAt},{"expiresAt",issuedAt+60000},{"request","想吃河粉 25元预算 一份"},{"budget",2500},{"authorized",true}};
+        File.WriteAllText(Path.Combine(remoteDirectory,"command.json"),Bootstrap.Json.Serialize(remoteCommand),new UTF8Encoding(false));
+        await remote.Poll(RemoteInspect,RemoteExecute);
         bool done=false;
         for(int i=0;i<100;i++)
         {
@@ -370,6 +406,9 @@ internal sealed class DesktopHost : Form
         var last=(Dictionary<string,object>)store.Engine["lastOrder"];
         if(Convert.ToString(last["orderId"])!="TEST202610200001"||Convert.ToInt32(last["total"])!=1500)throw new IOException("模拟订单核对失败。");
         int submissions=Convert.ToInt32(await official.CoreWebView2.ExecuteScriptAsync("Number(localStorage.fixtureSubmits||0)"));if(submissions!=1)throw new IOException("提交次数不符合单次限制。");
+        await panel.CoreWebView2.ExecuteScriptAsync("Desktop.inspect()");await Task.Delay(200);await remote.Poll(RemoteInspect,RemoteExecute);
+        string remoteProof=File.ReadAllText(Path.Combine(remoteDirectory,"status.json"));
+        if(!remoteProof.Contains("TEST202610200001")||File.Exists(Path.Combine(remoteDirectory,"claimed.json")))throw new IOException("手机请求未收到已核对的模拟订单结果。");
         if(store.Engine.ContainsKey("schedule")&&Convert.ToBoolean(((Dictionary<string,object>)store.Engine["schedule"])["enabled"]))throw new IOException("单次点餐意外启用了循环定时。");
         var reloaded=new LocalStore(Bootstrap.Root);if(!reloaded.Engine.ContainsKey("lastOrder"))throw new IOException("点餐记录未持久保存。");
         string file=Path.Combine(Bootstrap.Root,"settings.dpapi");if(Encoding.UTF8.GetString(File.ReadAllBytes(file)).Contains("TEST202610200001"))throw new IOException("本机状态未加密。");

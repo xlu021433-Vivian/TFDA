@@ -7,23 +7,23 @@
 </head>
 <body>
 <header class="app-header">
-  <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M6 15h20c0 7-4 11-10 11S6 22 6 15Z" fill="currentColor"/><path d="M10 5c-3 3 3 4 0 7m7-8c-3 3 3 4 0 7m7-6c-3 3 3 4 0 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10 28h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><div><b>神器</b><small>你的日常点餐助手</small></div></div>
-  <span class="version">0.5.4 <span>测试版</span></span>
+  <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M5 16h22c-1 7-5 10-11 10S6 23 5 16Z" stroke="currentColor" stroke-width="1.6"/><path d="M11 6c-3 3 3 4 0 7m9-9c-3 3 3 4 0 7M10 29h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><div><b>神器<span class="brand-period">.</span></b><small>A LITTLE MEAL, WITH CARE</small></div></div>
+  <span class="version">0.6.0 <span>L5 用餐便签</span></span>
 </header>
 <div class="connection"><span id="dot" class="dot"></span><div><b id="connection">正在连接美团</b><small id="pageStatus">稍等一下，正在准备官方页面</small></div><button id="reload" class="icon-button" title="重新加载美团页面" aria-label="重新加载美团页面"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 9a7 7 0 1 0 .2 6M19 4v5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
 <nav aria-label="助手功能" role="tablist"><button id="mealTab" class="active" data-tab="meal" role="tab" aria-controls="meal" aria-selected="true">点一餐</button><button id="scheduleTab" data-tab="schedule" role="tab" aria-controls="schedule" aria-selected="false" tabindex="-1">定时点餐</button><button id="noticeTab" data-tab="notice" role="tab" aria-controls="notice" aria-selected="false" tabindex="-1">付款提醒</button></nav>
 <main>
 <section id="meal" class="tab active" role="tabpanel" aria-labelledby="mealTab">
-  <div class="section-heading"><span class="eyebrow">TODAY'S MEAL</span><h1>今天，想吃点什么？</h1><p>说出你的想法，或者让我随机挑一份。</p></div>
+  <div class="section-heading"><span class="eyebrow"><span aria-hidden="true">✳</span> A LITTLE BREAK, A LOVELY MEAL</span><h1>今天这一餐，<em>交给我吧。</em></h1><p>好好吃饭，也留一点时间给自己。</p></div>
   <div id="flow" class="flow" hidden><div class="flow-heading"><span class="status-mark" aria-hidden="true"></span><b id="flowTitle">正在准备这一餐</b></div><p id="flowDetail"></p><ol id="steps" class="steps" aria-label="点餐进度"><li data-step="home"><span>1</span>选店</li><li data-step="menu"><span>2</span>加购</li><li data-step="preview"><span>3</span>用券</li><li data-step="done"><span>4</span>待支付</li></ol></div>
   <section id="manualSpecs" class="manual-card" hidden aria-labelledby="specHeading"><span class="eyebrow">需要你来选</span><h2 id="specHeading">确认一下餐品规格</h2><p>在右侧官方弹窗选择规格，只加入 <b>1 份</b>。核对后在这里继续，已加好的份数不会重复添加。</p><label class="consent"><input id="specConsent" type="checkbox"><span>我已核对食材、糖度等要求，并在官方弹窗只加了1份。</span></label><button id="resumeSpecs" class="primary wide" disabled>核对并继续</button></section>
   <div id="order" class="order" hidden><div class="order-heading"><span class="order-check" aria-hidden="true">✓</span><div><b>这一餐，等你付款</b><small>已识别官方待支付订单</small></div></div><dl><div><dt>订单号</dt><dd id="orderId"></dd></div><div><dt>待支付</dt><dd id="orderAmount"></dd></div></dl><button id="openOrder" class="primary wide">查看官方订单</button><p>请在美团有效期内本人付款。</p></div>
   <div id="requestForm">
-    <label class="field-label" for="request">告诉我你的需求</label><textarea id="request" maxlength="160" aria-describedby="intentResult" placeholder="想吃河粉，25元预算，一份"></textarea>
+    <div class="note-caption"><label class="field-label" for="request">写下你的用餐心愿</label><span aria-hidden="true">↗</span></div><textarea id="request" maxlength="160" aria-describedby="intentResult" placeholder="想吃河粉，25元预算，一份"></textarea>
+    <div class="budget-row"><label for="budget"><b>本餐预算</b><small>券后 · 含包装与配送</small></label><div class="budget-input"><span>¥</span><input id="budget" type="number" min="0.01" max="1000" step="0.01" value="25.00" aria-label="本餐券后预算（元）"></div></div>
     <div class="suggestions" aria-label="快速填写示例"><button data-request="">随便吃点</button><button data-request="想吃河粉 25元预算 一份">来份河粉</button><button data-request="一杯奶茶，少糖去冰，预算25元">喝杯奶茶</button></div>
     <div id="intentResult" class="intent-result" role="status" aria-live="polite"></div>
-    <div class="budget-row"><label for="budget"><b>本餐预算</b><small>券后 · 含包装与配送</small></label><div class="budget-input"><span>¥</span><input id="budget" type="number" min="0.01" max="1000" step="0.01" value="25.00" aria-label="本餐券后预算（元）"></div></div>
-    <div class="preferences" aria-label="已保存偏好"><span><i aria-hidden="true">✓</i> 不吃猪肉</span><span><i aria-hidden="true">✓</i> 必须用券</span><span>可免费膨胀一张</span></div>
+    <div class="preferences" aria-label="已保存偏好"><span><i aria-hidden="true">♡</i> 不吃猪肉</span><span><i aria-hidden="true">✳</i> 必须用券</span><span>有免费膨胀就使用</span></div>
     <button id="home" class="text-button wide">想自己挑店？打开美团首页 →</button>
   </div>
   <button id="stop" class="wide stop-button" hidden>暂停这次点餐</button>
@@ -38,6 +38,7 @@
 <section id="notice" class="tab" role="tabpanel" aria-labelledby="noticeTab">
   <div class="section-heading"><span class="eyebrow">READY TO PAY</span><h1>选好了，提醒你。</h1><p>生成待支付订单后，提醒你完成付款。</p></div>
   <div class="notice-card"><span class="notice-icon" aria-hidden="true">✓</span><div><b>电脑通知</b><p>随神器运行，无需单独配置。</p></div></div>
+  <div class="settings-card"><h2>L5 手机控制</h2><p>在 l5space.icu/shenqi/ 使用 L5 管理员账号控制本机神器。美团登录和 Bark key 不会同步到网页，每次启动需重新启用。</p><label class="consent"><input id="remoteConsent" type="checkbox"><span>允许登录 L5 管理员账号的本人，从网页发送选餐和暂停请求；使用本机当前配送地址，仍需实际用券、遵守预算，只创建待支付订单。</span></label><label class="switch"><div><b>允许手机控制这台神器</b><small>关闭后不再接收新的远程请求</small></div><input id="remoteEnabled" type="checkbox" role="switch"></label><button id="saveRemote" class="primary wide">保存手机控制设置</button><p id="remoteState" class="hint"></p><details><summary>远程请求中断后的恢复</summary><p>先暂停并核对美团购物车和官方订单；如有提交防重记录，先在点餐页核对解除。恢复仅清理接收记录，不取消订单。</p><label class="consent"><input id="remoteReviewed" type="checkbox"><span>我已核对上一笔结果，可以清理远程接收记录。</span></label><button id="resetRemote" class="wide" disabled>核对后恢复远程连接</button></details></div>
   <div class="settings-card"><h2>推送到 iPhone</h2><p>Bark 可稍后配置，密钥只加密保存在本机。</p><label>Bark key<input id="barkKey" type="password" autocomplete="off" placeholder="粘贴你的 Bark key"></label><button id="saveBark" class="primary wide">保存手机推送设置</button><button id="testNotice" class="wide">发送一条测试通知</button><p id="barkState" class="hint"></p></div>
   <details class="utilities"><summary>连接检查与桌面入口</summary><button id="diagnostics" class="wide">检查连接</button><button id="shortcut" class="wide">添加桌面快捷方式</button><p id="diagnosticResult" class="hint"></p></details>
 </section>
