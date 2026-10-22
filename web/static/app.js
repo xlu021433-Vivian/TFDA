@@ -21,11 +21,11 @@
     }
     if(pending&&online&&Date.now()>pendingAt+70000&&!state.queued&&!state.unresolved&&!state.busy&&!state.locked&&state.requestId!==pending){sessionStorage.removeItem('shenqiPending');pending='';say('上一笔请求没有被确认接收，现已过期；请重新核对后发送。');}
     $('connectionTitle').textContent=!online?'桌面神器未连接':!enabled?'桌面已连接，远程未启用':state.loginNeeded?'请在电脑上登录美团':state.ready?'桌面神器已连接':'桌面需要处理';
-    $('dot').className='dot '+(online&&enabled&&state.ready?'good':!online?'bad':'');
-    $('connectionDetail').textContent=!online?'请在电脑打开神器0.6.0或更新版，保持联网、不休眠。':!enabled?'请在桌面神器「付款提醒 → L5 手机控制」启用远程控制。':state.loginNeeded?'请在桌面窗口亲自登录并确认配送地址。':state.message||'可以在这里填写需求，由电脑完成选餐。';
-    let reason=!online?'等待桌面神器连接':!enabled?'请先在桌面启用远程控制':pending||state.queued?'等待电脑确认本次请求':state.busy?'这一餐正在准备中':state.locked?'请先核对上一笔官方订单':state.unresolved?'上一笔接收结果需在桌面核对':!state.ready?'请先在桌面准备美团页面':!parsed?'请调整需求或预算':!$('consent').checked?'请勾选本次用餐授权':'';
+    $('dot').className='dot '+(online&&enabled&&state.ready&&!state.loginNeeded?'good':!online?'bad':'');
+    $('connectionDetail').textContent=!online?'请在电脑打开神器0.6.1或更新版，保持联网、不休眠。':!enabled?'在电脑神器首页点一次「连接手机」，以后会记住。':state.loginNeeded?'请在桌面窗口亲自登录并确认配送地址。':!state.ready?(state.message||'请回电脑检查美团页面。'):'可以直接填写需求并选餐；电脑使用当前美团配送地址。';
+    let reason=!online?'等待桌面神器连接':!enabled?'请先在桌面启用远程控制':state.loginNeeded?'请先在电脑登录美团':pending||state.queued?'等待电脑确认本次请求':state.busy?'这一餐正在准备中':state.locked?'请先核对上一笔官方订单':state.unresolved?'上一笔接收结果需在桌面核对':!state.ready?'请先在桌面准备美团页面':!parsed?'请调整需求或预算':'';
     $('start').disabled=!!reason||sending;
-    $('start').textContent=sending?'正在发送…':reason||($('request').value.trim()?'按需求帮我选餐':'帮我随机选餐');
+    $('start').textContent=sending?'正在发送…':reason||('用券选1餐 · 不超过¥'+(parsed.budget/100).toFixed(2));
     $('hint').textContent=reason||'实际用券、券后不超预算，才会创建1笔待支付订单。';
     $('stop').disabled=!online||!enabled||sending;
     $('progressCard').hidden=!(state.busy||pending||state.queued||state.requestError||state.unresolved);
@@ -58,8 +58,8 @@
     if(sending||$('start').disabled||!parsed)return;
     sending=true;pending=crypto.randomUUID();pendingAt=Date.now();sessionStorage.setItem('shenqiPending',pending);sessionStorage.setItem('shenqiPendingAt',String(pendingAt));render();
     try{
-      await api('command',{method:'POST',body:JSON.stringify({id:pending,createdAt:pendingAt,kind:'meal',request:$('request').value,budget:parsed.budget,authorized:$('consent').checked})});
-      $('consent').checked=false;say('已发送到电脑。请等待真实订单结果，不要重复下单。');
+      await api('command',{method:'POST',body:JSON.stringify({id:pending,createdAt:pendingAt,kind:'meal',request:$('request').value,budget:parsed.budget,authorized:true})});
+      say('已发送到电脑。请等待真实订单结果，不要重复下单。');
     }catch(error){
       // A failed connection may still have accepted the request. Never resend it automatically.
       if(error.rejected){sessionStorage.removeItem('shenqiPending');pending='';say(error.message,true);}
@@ -71,8 +71,8 @@
     try{await api('command',{method:'POST',body:JSON.stringify({id:crypto.randomUUID(),createdAt:Date.now(),kind:'stop'})});say('暂停请求已发送，等待桌面确认；请核对官方购物车和订单。');}
     catch(error){say('暂停尚未确认：'+error.message,true);}finally{sending=false;await refresh();}
   };
-  for(const button of document.querySelectorAll('[data-request]'))button.onclick=()=>{$('request').value=button.dataset.request;$('consent').checked=false;interpret(true);render();$('request').focus();};
-  $('request').oninput=()=>{$('consent').checked=false;interpret(true);render();};
-  $('budget').oninput=()=>{$('consent').checked=false;render();};$('consent').onchange=render;
+  for(const button of document.querySelectorAll('[data-request]'))button.onclick=()=>{$('request').value=button.dataset.request;interpret(true);render();$('request').focus();};
+  $('request').oninput=()=>{interpret(true);render();};
+  $('budget').oninput=()=>{render();};
   refresh();setInterval(refresh,5000);
 })();

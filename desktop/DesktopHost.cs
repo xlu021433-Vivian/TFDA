@@ -40,7 +40,7 @@ internal sealed class DesktopHost : Form
     {
         store=new LocalStore(Bootstrap.Root);
         remote=new RemoteLink(Bootstrap.Root,store);
-        remote.Enable(false);
+        if(Bootstrap.EnablePhone&&!Bootstrap.Test)remote.Enable(true);
         StopInterruptedTask(store);
         Text=Bootstrap.Test?"神器 · 本地模拟验证（不会创建真实订单）":"神器 · 今天这一餐";
         var area=Screen.PrimaryScreen.WorkingArea;
@@ -261,7 +261,7 @@ internal sealed class DesktopHost : Form
             case "storage_set":store.Change((Dictionary<string,object>)args["change"]);return new {ok=true};
             case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);return new {ok=true};
             case "panel_ready":panelReady.TrySetResult(true);return new {ok=true};
-            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.6.0",remoteEnabled=remote.Enabled};
+            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.6.1",remoteEnabled=remote.Enabled};
             case "remote_enable":
                 if(!(args["enabled"] is bool))throw new IOException("远程开关格式无效。");remote.Enable((bool)args["enabled"]);await remote.Poll(RemoteInspect,RemoteExecute);return new {ok=true};
             case "remote_reset":await remote.Reset(RemoteInspect);return new {ok=true};
@@ -285,7 +285,7 @@ internal sealed class DesktopHost : Form
                 return new {ok=true};
             case "notify":return await Notify(args);
             case "diagnostics":
-                return new {message="程序：0.6.0\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n绘制模式：软件兼容\n显示恢复次数："+renderRecoveries+"\n桌面控制台错误："+errors.Count};
+                return new {message="程序：0.6.1\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n绘制模式：软件兼容\n显示恢复次数："+renderRecoveries+"\n桌面控制台错误："+errors.Count};
             default:throw new IOException("不支持此操作。");
         }
     }

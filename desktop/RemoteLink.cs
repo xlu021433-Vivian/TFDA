@@ -21,7 +21,7 @@ internal sealed class RemoteLink
     Dictionary<string,object> Read(string name){string path=Path.Combine(root,name);if(new FileInfo(path).Length>65536)throw new IOException("远程请求过大。");return Bootstrap.Json.Deserialize<Dictionary<string,object>>(File.ReadAllText(path,Encoding.UTF8));}
     void Publish(Dictionary<string,object> value)
     {
-        Directory.CreateDirectory(root);value["enabled"]=Enabled;value["updatedAt"]=Now();value["version"]="0.6.0";
+        Directory.CreateDirectory(root);value["enabled"]=Enabled;value["updatedAt"]=Now();value["version"]="0.6.1";
         value["requestId"]=requestId;value["requestState"]=requestState;value["requestError"]=requestError;
         string target=Path.Combine(root,"status.json"),temp=Path.Combine(root,"status-"+Guid.NewGuid().ToString("N")+".tmp");
         File.WriteAllText(temp,Bootstrap.Json.Serialize(value),new UTF8Encoding(false));
@@ -113,7 +113,7 @@ internal sealed class RemoteLink
         Func<string,Dictionary<string,object>> commandFor=kind=>new Dictionary<string,object>{{"version",1},{"id",Guid.NewGuid().ToString()},{"kind",kind},{"createdAt",Now()},{"expiresAt",Now()+60000},{"request","想吃河粉 25元预算 一份"},{"budget",2500},{"authorized",true}};
         var first=commandFor("meal");File.WriteAllText(Path.Combine(root,"command.json"),Bootstrap.Json.Serialize(first));
         await link.Poll(inspect,execute);if(meals!=0)throw new IOException("未启用远程控制却执行了请求。");
-        link.Enable(true);await link.Poll(inspect,execute);if(meals!=1||!File.Exists(Path.Combine(root,"claimed.json")))throw new IOException("远程请求未独占接收。");
+        link.Enable(true);if(!new RemoteLink(directory,new LocalStore(directory)).Enabled)throw new IOException("重开后丢失手机连接设置。");await link.Poll(inspect,execute);if(meals!=1||!File.Exists(Path.Combine(root,"claimed.json")))throw new IOException("远程请求未独占接收。");
         await link.Poll(inspect,execute);if(meals!=1)throw new IOException("远程任务被重复执行。");
         File.WriteAllText(Path.Combine(root,"command.json"),Bootstrap.Json.Serialize(commandFor("meal")));
         File.WriteAllText(Path.Combine(root,"stop.json"),Bootstrap.Json.Serialize(commandFor("stop")));
@@ -127,6 +127,7 @@ internal sealed class RemoteLink
         File.WriteAllText(Path.Combine(root,"claimed.json"),Bootstrap.Json.Serialize(commandFor("meal")));
         var reopened=new RemoteLink(directory,local);await reopened.Poll(inspect,execute);
         if(reopened.requestState!="interrupted"||meals!=1)throw new IOException("未知接收结果被自动恢复。");
+        reopened.Enable(false);if(new RemoteLink(directory,new LocalStore(directory)).Enabled)throw new IOException("断开后重新启用了手机控制。");
     }
 }
 

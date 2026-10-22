@@ -88,15 +88,18 @@
     $('scheduleState').textContent=state.schedule?.enabled?'已启用 · 北京时间 '+state.schedule.time+' · 券后含配送 '+ShenqiPolicy.money(state.schedule.budget):'当前未启用，到点不会自动下单。';
     $('barkState').textContent=nativeStatus.barkConfigured?'已保存手机推送设置。'+(nativeStatus.lastBark===true?'最近一次推送已被Bark服务接受，请在手机确认收到。':nativeStatus.lastBark===false?'最近一次推送失败，请检查key和网络。':'可以发送测试通知，确认手机能收到。'):'尚未设置手机推送，电脑通知仍可使用。';
     $('remoteState').textContent=nativeStatus.remoteEnabled?'已允许 L5 管理员账号发送选餐和暂停请求。电脑与神器需保持运行。':'手机控制未启用，网页不会执行点餐。';
+    $('phoneTitle').textContent=nativeStatus.remoteEnabled?'手机连接已开启':'在手机上点餐';
+    $('phoneDetail').textContent=nativeStatus.remoteEnabled?'l5space.icu/shenqi/ · 已记住这台电脑':'允许L5管理员用当前地址选餐，只到待支付';
+    $('connectPhone').textContent=nativeStatus.remoteEnabled?'断开':'连接手机';
+    $('connectPhone').disabled=actionBusy||stopping;
     $('resetRemote').disabled=!$('remoteReviewed').checked||actionBusy||stopping||running||!!state.submissionAttempt;
-    for(const id of ['saveSchedule','saveBark','testNotice','diagnostics','shortcut','saveRemote'])$(id).disabled=actionBusy||stopping;
+    for(const id of ['saveSchedule','saveBark','testNotice','diagnostics','shortcut'])$(id).disabled=actionBusy||stopping;
   }
   async function refresh(force=false){
     if(refreshPromise){await refreshPromise;if(!force)return state;}
     refreshPromise=(async()=>{
       const [saved,status]=await Promise.all([storage.get(['schedule','activeRun','submissionAttempt','attemptMeta','lastOrder','notificationStatus']),rpc('status')]);
       state=saved;nativeStatus=status;storageReady=true;
-      if(!hydrated)$('remoteEnabled').checked=!!status.remoteEnabled;
       if(!hydrated){const config=state.schedule||ShenqiSchedule.defaults;$('time').value=config.time;$('scheduleBudget').value=(config.budget/100).toFixed(2);$('scheduleRequest').value=config.request;$('enabled').checked=config.enabled;$('scheduleConsent').checked=config.authorized;for(const item of document.querySelectorAll('[name=day]'))item.checked=config.weekdays.includes(Number(item.value));hydrated=true;}
       render();return state;
     })().catch(error=>{storageReady=false;render();throw error;}).finally(()=>{refreshPromise=null;});
@@ -157,7 +160,7 @@
   $('diagnostics').onclick=()=>action(async()=>{$('diagnosticResult').textContent=(await rpc('diagnostics')).message;});
   $('shortcut').onclick=()=>action(async()=>{await rpc('shortcut');tell('桌面快捷方式已更新，请将本程序保留在固定位置。');});
   $('remoteReviewed').onchange=render;
-  $('saveRemote').onclick=()=>action(async()=>{if($('remoteEnabled').checked&&!$('remoteConsent').checked)throw Error('请先阅读并勾选手机控制授权。');await rpc('remote_enable',{enabled:$('remoteEnabled').checked});$('remoteConsent').checked=false;tell('手机控制设置已保存。');});
+  $('connectPhone').onclick=()=>action(async()=>{const enabled=!nativeStatus.remoteEnabled;await rpc('remote_enable',{enabled});tell(enabled?'已连接并记住这台电脑。手机打开 l5space.icu/shenqi/，仅L5管理员可用。':'已断开手机连接。');});
   $('resetRemote').onclick=()=>action(async()=>{if(!$('remoteReviewed').checked||active()||state.submissionAttempt)throw Error('请先暂停并核对上一笔官方订单、防重记录。');await rpc('remote_reset');$('remoteReviewed').checked=false;tell('远程接收记录已清理，请重新核对后发送需求。');});
   function remoteStatus(){
     const run=state.activeRun;

@@ -8,10 +8,11 @@
 <body>
 <header class="app-header">
   <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M5 16h22c-1 7-5 10-11 10S6 23 5 16Z" stroke="currentColor" stroke-width="1.6"/><path d="M11 6c-3 3 3 4 0 7m9-9c-3 3 3 4 0 7M10 29h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><div><b>神器<span class="brand-period">.</span></b><small>A LITTLE MEAL, WITH CARE</small></div></div>
-  <span class="version">0.6.0 <span>L5 用餐便签</span></span>
+  <span class="version">0.6.1 <span>L5 用餐便签</span></span>
 </header>
 <div class="connection"><span id="dot" class="dot"></span><div><b id="connection">正在连接美团</b><small id="pageStatus">稍等一下，正在准备官方页面</small></div><button id="reload" class="icon-button" title="重新加载美团页面" aria-label="重新加载美团页面"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 9a7 7 0 1 0 .2 6M19 4v5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
-<nav aria-label="助手功能" role="tablist"><button id="mealTab" class="active" data-tab="meal" role="tab" aria-controls="meal" aria-selected="true">点一餐</button><button id="scheduleTab" data-tab="schedule" role="tab" aria-controls="schedule" aria-selected="false" tabindex="-1">定时点餐</button><button id="noticeTab" data-tab="notice" role="tab" aria-controls="notice" aria-selected="false" tabindex="-1">付款提醒</button></nav>
+<div class="phone-connect"><div><b id="phoneTitle">在手机上点餐</b><small id="phoneDetail">l5space.icu/shenqi/ · 仅L5管理员</small></div><button id="connectPhone" type="button">连接手机</button></div>
+<nav aria-label="助手功能" role="tablist"><button id="mealTab" class="active" data-tab="meal" role="tab" aria-controls="meal" aria-selected="true">点一餐</button><button id="scheduleTab" data-tab="schedule" role="tab" aria-controls="schedule" aria-selected="false" tabindex="-1">定时点餐</button><button id="noticeTab" data-tab="notice" role="tab" aria-controls="notice" aria-selected="false" tabindex="-1">设置与提醒</button></nav>
 <main>
 <section id="meal" class="tab active" role="tabpanel" aria-labelledby="mealTab">
   <div class="section-heading"><span class="eyebrow"><span aria-hidden="true">✳</span> A LITTLE BREAK, A LOVELY MEAL</span><h1>今天这一餐，<em>交给我吧。</em></h1><p>好好吃饭，也留一点时间给自己。</p></div>
@@ -38,7 +39,7 @@
 <section id="notice" class="tab" role="tabpanel" aria-labelledby="noticeTab">
   <div class="section-heading"><span class="eyebrow">READY TO PAY</span><h1>选好了，提醒你。</h1><p>生成待支付订单后，提醒你完成付款。</p></div>
   <div class="notice-card"><span class="notice-icon" aria-hidden="true">✓</span><div><b>电脑通知</b><p>随神器运行，无需单独配置。</p></div></div>
-  <div class="settings-card"><h2>L5 手机控制</h2><p>在 l5space.icu/shenqi/ 使用 L5 管理员账号控制本机神器。美团登录和 Bark key 不会同步到网页，每次启动需重新启用。</p><label class="consent"><input id="remoteConsent" type="checkbox"><span>允许登录 L5 管理员账号的本人，从网页发送选餐和暂停请求；使用本机当前配送地址，仍需实际用券、遵守预算，只创建待支付订单。</span></label><label class="switch"><div><b>允许手机控制这台神器</b><small>关闭后不再接收新的远程请求</small></div><input id="remoteEnabled" type="checkbox" role="switch"></label><button id="saveRemote" class="primary wide">保存手机控制设置</button><p id="remoteState" class="hint"></p><details><summary>远程请求中断后的恢复</summary><p>先暂停并核对美团购物车和官方订单；如有提交防重记录，先在点餐页核对解除。恢复仅清理接收记录，不取消订单。</p><label class="consent"><input id="remoteReviewed" type="checkbox"><span>我已核对上一笔结果，可以清理远程接收记录。</span></label><button id="resetRemote" class="wide" disabled>核对后恢复远程连接</button></details></div>
+  <div class="settings-card"><h2>L5 手机控制</h2><p>手机打开 l5space.icu/shenqi/，登录L5管理员账号即可使用。连接开关已移到首页，开启后会记住；随时可以断开。美团账号与配送地址仍使用这台电脑。</p><p id="remoteState" class="hint"></p><details><summary>远程请求中断后的恢复</summary><p>先暂停并核对美团购物车和官方订单；如有提交防重记录，先在点餐页核对解除。恢复仅清理接收记录，不取消订单。</p><label class="consent"><input id="remoteReviewed" type="checkbox"><span>我已核对上一笔结果，可以清理远程接收记录。</span></label><button id="resetRemote" class="wide" disabled>核对后恢复远程连接</button></details></div>
   <div class="settings-card"><h2>推送到 iPhone</h2><p>Bark 可稍后配置，密钥只加密保存在本机。</p><label>Bark key<input id="barkKey" type="password" autocomplete="off" placeholder="粘贴你的 Bark key"></label><button id="saveBark" class="primary wide">保存手机推送设置</button><button id="testNotice" class="wide">发送一条测试通知</button><p id="barkState" class="hint"></p></div>
   <details class="utilities"><summary>连接检查与桌面入口</summary><button id="diagnostics" class="wide">检查连接</button><button id="shortcut" class="wide">添加桌面快捷方式</button><p id="diagnosticResult" class="hint"></p></details>
 </section>
