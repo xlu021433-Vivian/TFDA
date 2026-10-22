@@ -24,6 +24,9 @@ internal sealed class DesktopHost : Form
     bool initialized,injecting;
     bool? lastBark;
     string lastHttpError;
+    ulong currentNavigation;
+    bool documentReady;
+    readonly HashSet<ulong> blockedNavigations=new HashSet<ulong>();
     string pageStatus="正在打开美团官方网页…";
     readonly List<string> errors=new List<string>();
     internal int ExitCode=0;
@@ -68,7 +71,7 @@ internal sealed class DesktopHost : Form
         if(value=="about:blank"||IsOfficial(value))return null;
         return "当前官方页面不支持自动点餐，任务已停止。请回到美团外卖首页选择餐饮商家；尚未确认新订单。";
     }
-    internal static void StopUnsupportedTask(LocalStore local,string reason)
+    internal static void StopTaskForPageFailure(LocalStore local,string reason)
     {
         object value;if(!local.Engine.TryGetValue("activeRun",out value))return;
         var run=value as Dictionary<string,object>;
@@ -101,27 +104,31 @@ internal sealed class DesktopHost : Form
             official.CoreWebView2.Settings.IsStatusBarEnabled=false;
             official.CoreWebView2.WebMessageReceived+=PageMessage;
             official.CoreWebView2.NavigationStarting+=delegate(object sender,CoreWebView2NavigationStartingEventArgs args){
-                if(!AllowedNavigation(args.Uri)){args.Cancel=true;SendPageState(false,"这个链接不属于美团官方网页，已停止打开。付款请在手机美团订单中完成。",false);}
-                else {lastHttpError=null;SendPageState(false,null,false);}
+                if(!AllowedNavigation(args.Uri))
+                {
+                    args.Cancel=true;blockedNavigations.Add(args.NavigationId);
+                    // A blocked app-launch link does not invalidate the document already on screen.
+                    if(!documentReady)SendPageState(false,"已阻止打开外部链接。请回到美团外卖首页；尚未确认新订单。",false);
+                }
+                else {currentNavigation=args.NavigationId;documentReady=false;lastHttpError=null;SendPageState(false,null,false);}
             };
-            official.CoreWebView2.NewWindowRequested+=delegate(object sender,CoreWebView2NewWindowRequestedEventArgs args){args.Handled=true;if(AllowedNavigation(args.Uri))official.Source=new Uri(args.Uri);else SendPageState(false,"请在手机美团中完成外部支付或操作。",false);};
+            official.CoreWebView2.NewWindowRequested+=delegate(object sender,CoreWebView2NewWindowRequestedEventArgs args){args.Handled=true;if(AllowedNavigation(args.Uri))official.Source=new Uri(args.Uri);else if(!documentReady)SendPageState(false,"请在手机美团中完成外部支付或操作。",false);};
             official.CoreWebView2.PermissionRequested+=delegate(object sender,CoreWebView2PermissionRequestedEventArgs args){
                 args.SavesInProfile=false;
                 args.State=CoreWebView2PermissionState.Deny;
                 if(!Bootstrap.Test&&args.PermissionKind==CoreWebView2PermissionKind.Geolocation&&AllowedNavigation(args.Uri)&&MessageBox.Show(this,"美团官方页面请求使用本机定位以展示附近商家。是否允许本次定位？也可拒绝并手动选择地址。","美团定位请求",MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes)args.State=CoreWebView2PermissionState.Allow;
             };
-            official.CoreWebView2.ServerCertificateErrorDetected+=delegate(object sender,CoreWebView2ServerCertificateErrorDetectedEventArgs args){args.Action=CoreWebView2ServerCertificateErrorAction.Cancel;SendPageState(false,"官方网页证书验证失败，已停止连接。",false);};
+            official.CoreWebView2.ServerCertificateErrorDetected+=delegate(object sender,CoreWebView2ServerCertificateErrorDetectedEventArgs args){args.Action=CoreWebView2ServerCertificateErrorAction.Cancel;documentReady=false;StopTaskForPageFailure(store,"官方网页证书验证失败，已停止连接。");SendPageState(false,"官方网页证书验证失败，已停止连接。",false);};
             official.CoreWebView2.NavigationCompleted+=async delegate(object sender,CoreWebView2NavigationCompletedEventArgs args){
-                if(!args.IsSuccess){SendPageState(false,"网页加载失败："+args.WebErrorStatus,false);return;}
-                if(lastHttpError!=null){SendPageState(false,lastHttpError,false);return;}
-                bool supported=IsOfficial(official.Source.AbsoluteUri);
+                bool blocked=blockedNavigations.Remove(args.NavigationId);
+                if(args.NavigationId!=currentNavigation||blocked)return;
+                if(args.HttpStatusCode>=400){documentReady=false;lastHttpError="官方网页返回 HTTP "+args.HttpStatusCode+"，请稍后重试。尚未确认新订单。";StopTaskForPageFailure(store,lastHttpError);SendPageState(false,lastHttpError,false);return;}
+                if(!args.IsSuccess){documentReady=false;string failure=args.WebErrorStatus==CoreWebView2WebErrorStatus.OperationCanceled?"当前网页加载已取消，请点击返回美团首页后重试。尚未确认新订单。":"网页加载失败："+args.WebErrorStatus;StopTaskForPageFailure(store,failure);SendPageState(false,failure,false);return;}
+                lastHttpError=null;
+                bool supported=IsOfficial(official.Source.AbsoluteUri);documentReady=supported;
                 string unsupported=UnsupportedPage(official.Source.AbsoluteUri);
-                if(unsupported!=null)StopUnsupportedTask(store,unsupported);
+                if(unsupported!=null)StopTaskForPageFailure(store,unsupported);
                 SendPageState(supported,unsupported,true);if(supported){await Inject();await official.CoreWebView2.ExecuteScriptAsync("globalThis.ShenqiReading?.setEnabled("+(reading.Checked?"true":"false")+")");}
-            };
-            official.CoreWebView2.WebResourceResponseReceived+=delegate(object sender,CoreWebView2WebResourceResponseReceivedEventArgs args){
-                if(official.Source!=null&&args.Request.Uri==official.Source.AbsoluteUri&&args.Response.StatusCode>=400)
-                {lastHttpError="官方网页返回 HTTP "+args.Response.StatusCode+"，请稍后重试。尚未确认新订单。";SendPageState(false,lastHttpError,false);}
             };
             string script="if(window===window.top&&location.origin==='https://h5.waimai.meituan.com'){\n";
             foreach(string name in new[]{"page-bridge.js","guard-data.js","policy.js","schedule.js","adapter.js","styles.js","official-theme.js"})script+=Asset(name)+"\n";
@@ -129,9 +136,16 @@ internal sealed class DesktopHost : Form
             if(Bootstrap.Test)
             {
                 official.CoreWebView2.AddWebResourceRequestedFilter("*",CoreWebView2WebResourceContext.All);
-                official.CoreWebView2.WebResourceRequested+=delegate(object sender,CoreWebView2WebResourceRequestedEventArgs args){
-                    string html=IsOfficial(args.Request.Uri)?Fixture(new Uri(args.Request.Uri).AbsolutePath):"";
-                    args.Response=environment.CreateWebResourceResponse(new MemoryStream(Encoding.UTF8.GetBytes(html)),200,"OK","Content-Type: text/html; charset=utf-8\r\nCache-Control: no-store");
+                official.CoreWebView2.WebResourceRequested+=async delegate(object sender,CoreWebView2WebResourceRequestedEventArgs args){
+                    var deferred=args.GetDeferral();
+                    try
+                    {
+                        if(args.Request.Uri.Contains("slow-fixture=1"))await Task.Delay(450);
+                        string html=IsOfficial(args.Request.Uri)?Fixture(new Uri(args.Request.Uri).AbsolutePath):"";
+                        int status=args.Request.Uri.Contains("fixture-http=502")?502:200;
+                        args.Response=environment.CreateWebResourceResponse(new MemoryStream(Encoding.UTF8.GetBytes(html)),status,status==200?"OK":"Bad Gateway","Content-Type: text/html; charset=utf-8\r\nCache-Control: no-store");
+                    }
+                    finally{deferred.Complete();}
                 };
             }
             panel.Source=new Uri("https://shenqi.local/options.html");
@@ -181,7 +195,7 @@ internal sealed class DesktopHost : Form
             case "storage_set":store.Change((Dictionary<string,object>)args["change"]);return new {ok=true};
             case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);return new {ok=true};
             case "panel_ready":panelReady.TrySetResult(true);return new {ok=true};
-            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.5.2"};
+            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.5.3"};
             case "navigate":
                 string url=Convert.ToString(args["url"]);if(!AllowedNavigation(url))throw new IOException("只允许打开美团官方 HTTPS 网页。");official.Source=new Uri(url);return new {id=1};
             case "reload":if(official.CoreWebView2!=null)official.CoreWebView2.Reload();return new {ok=true};
@@ -202,13 +216,13 @@ internal sealed class DesktopHost : Form
                 return new {ok=true};
             case "notify":return await Notify(args);
             case "diagnostics":
-                return new {message="程序：0.5.2\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
+                return new {message="程序：0.5.3\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
             default:throw new IOException("不支持此操作。");
         }
     }
     void PageMessage(object sender,CoreWebView2WebMessageReceivedEventArgs args)
     {
-        if(lastHttpError!=null||!IsOfficial(args.Source)||official.Source==null||!IsOfficial(official.Source.AbsoluteUri)||new Uri(args.Source).GetLeftPart(UriPartial.Query)!=official.Source.GetLeftPart(UriPartial.Query))return;
+        if(!documentReady||lastHttpError!=null||!IsOfficial(args.Source)||official.Source==null||!IsOfficial(official.Source.AbsoluteUri)||new Uri(args.Source).GetLeftPart(UriPartial.Query)!=official.Source.GetLeftPart(UriPartial.Query))return;
         try
         {
             if(args.WebMessageAsJson.Length>65536)return;
@@ -258,6 +272,17 @@ internal sealed class DesktopHost : Form
     {
         if(IsPanel("https://shenqi.local.evil/options.html")||IsPanel("https://shenqi.local:8443/options.html")||IsOfficial("https://h5.waimai.meituan.com.evil/")||AllowedNavigation("file:///C:/test"))throw new IOException("来源校验失败。");
         await Task.Delay(2500);
+        await official.CoreWebView2.ExecuteScriptAsync("location.href='shenqi-test://blocked-app-launch'");await Task.Delay(400);
+        if(!documentReady||await panel.CoreWebView2.ExecuteScriptAsync("Boolean(Desktop&&document.getElementById('connection').textContent==='美团页面已连接')")!="true")throw new IOException("拦截外部拉起链接误报当前网页失败。");
+        official.Source=new Uri(Home+"?slow-fixture=1");await Task.Delay(70);official.Source=new Uri(Home);await Task.Delay(1000);
+        if(!documentReady||await panel.CoreWebView2.ExecuteScriptAsync("document.getElementById('connection').textContent")!="\"美团页面已连接\"")throw new IOException("被替换的旧导航覆盖了新页面的成功状态。");
+        store.Change(new Dictionary<string,object>{{"activeRun",new Dictionary<string,object>{{"id","http-error-test"},{"stage","home"}}}});
+        official.Source=new Uri(Home+"?fixture-http=502");await Task.Delay(2600);
+        if(documentReady||await panel.CoreWebView2.ExecuteScriptAsync("document.getElementById('pageStatus').textContent.includes('HTTP 502')")!="true")throw new IOException("真实HTTP错误未保留，或被页面心跳误报为成功。ready="+documentReady+"；http="+lastHttpError+"；界面="+await panel.CoreWebView2.ExecuteScriptAsync("document.getElementById('pageStatus').textContent"));
+        if(Convert.ToString(((Dictionary<string,object>)store.Engine["activeRun"])["stage"])!="failed")throw new IOException("真实HTTP错误后任务仍在执行。");
+        store.Remove(new[]{"activeRun"});
+        official.Source=new Uri(Home);await Task.Delay(1000);
+        if(!documentReady||lastHttpError!=null)throw new IOException("真实错误后返回首页未恢复。");
         string layoutCheck="(()=>{const main=document.querySelector('main'),button=document.getElementById('startMeal'),box=button.getBoundingClientRect();return document.body.scrollWidth<=innerWidth&&main.scrollWidth<=main.clientWidth&&box.height>=44&&box.top>=0&&box.bottom<=innerHeight;})()";
         if(await panel.CoreWebView2.ExecuteScriptAsync(layoutCheck)!="true")throw new IOException("点餐按钮被遮挡或界面横向溢出。");
         using(var idle=new FileStream(Path.Combine(Bootstrap.Root,"panel-idle.png"),FileMode.Create))await panel.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,idle);
@@ -304,7 +329,7 @@ internal sealed class DesktopHost : Form
         if(Convert.ToString(((Dictionary<string,object>)store.Engine["activeRun"])["stage"])!="stopped"||!Convert.ToBoolean(store.Engine["submissionAttempt"])||!store.Engine.ContainsKey("attemptMeta"))throw new IOException("重开后旧任务或提交防重记录处理异常。");
         var redirected=new Dictionary<string,object>(finished);redirected["stage"]="menu";
         store.Change(new Dictionary<string,object>{{"activeRun",redirected}});
-        StopUnsupportedTask(store,UnsupportedPage("https://cactivityapi-sc.waimai.meituan.com/h5/sub-trade/restaurant/restaurant"));
+        StopTaskForPageFailure(store,UnsupportedPage("https://cactivityapi-sc.waimai.meituan.com/h5/sub-trade/restaurant/restaurant"));
         if(Convert.ToString(((Dictionary<string,object>)store.Engine["activeRun"])["stage"])!="failed"||!Convert.ToBoolean(store.Engine["submissionAttempt"]))throw new IOException("不支持的商家跳转未停止任务或丢失防重记录。");
         store.Change(new Dictionary<string,object>{{"activeRun",finished}});
         await panel.CoreWebView2.ExecuteScriptAsync("Desktop.inspect()");await Task.Delay(400);
@@ -313,7 +338,7 @@ internal sealed class DesktopHost : Form
         if(singleSurface!="true")throw new IOException("右侧仍有重复的助手界面。");
         using(var left=new FileStream(Path.Combine(Bootstrap.Root,"panel.png"),FileMode.Create))await panel.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,left);
         using(var right=new FileStream(Path.Combine(Bootstrap.Root,"official-fixture.png"),FileMode.Create))await official.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,right);
-        WriteReport(new {ok=true,sourceGuards=true,embeddedBrowser=true,fullFixtureFlow=true,nonfoodExcluded=true,unsupportedRedirectStopped=true,reversibleOfficialReading=true,desktopRemScaleCapped=true,singleAssistantSurface=true,primaryActionVisible=true,narrowLayout=true,interruptedTaskNotResumed=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="TEST202610200001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
+        WriteReport(new {ok=true,sourceGuards=true,navigationCancellationScoped=true,blockedAppLinkKeepsPage=true,realHttpErrorPreserved=true,embeddedBrowser=true,fullFixtureFlow=true,nonfoodExcluded=true,unsupportedRedirectStopped=true,reversibleOfficialReading=true,desktopRemScaleCapped=true,singleAssistantSurface=true,primaryActionVisible=true,narrowLayout=true,interruptedTaskNotResumed=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="TEST202610200001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
         ExitCode=0;Close();
     }
     string Fixture(string path)
