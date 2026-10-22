@@ -181,7 +181,7 @@ internal sealed class DesktopHost : Form
             case "storage_set":store.Change((Dictionary<string,object>)args["change"]);return new {ok=true};
             case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);return new {ok=true};
             case "panel_ready":panelReady.TrySetResult(true);return new {ok=true};
-            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.5.1"};
+            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.5.2"};
             case "navigate":
                 string url=Convert.ToString(args["url"]);if(!AllowedNavigation(url))throw new IOException("只允许打开美团官方 HTTPS 网页。");official.Source=new Uri(url);return new {id=1};
             case "reload":if(official.CoreWebView2!=null)official.CoreWebView2.Reload();return new {ok=true};
@@ -202,7 +202,7 @@ internal sealed class DesktopHost : Form
                 return new {ok=true};
             case "notify":return await Notify(args);
             case "diagnostics":
-                return new {message="程序：0.5.1\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
+                return new {message="程序：0.5.2\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
             default:throw new IOException("不支持此操作。");
         }
     }
@@ -276,9 +276,11 @@ internal sealed class DesktopHost : Form
         using(var homeImage=new FileStream(Path.Combine(Bootstrap.Root,"official-home.png"),FileMode.Create))await official.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,homeImage);
         official.Source=new Uri("https://h5.waimai.meituan.com/waimai/mindex/menu?poi_id_str=fixture");await Task.Delay(900);
         if(await official.CoreWebView2.ExecuteScriptAsync("document.documentElement.getAttribute('data-shenqi-reading')")!="\"menu\"")throw new IOException("菜单舒适排版未加载。");
+        if(await official.CoreWebView2.ExecuteScriptAsync("getComputedStyle(document.documentElement).fontSize")!="\"50px\"")throw new IOException("手机页面rem随桌面宽度被放大。");
         using(var menuImage=new FileStream(Path.Combine(Bootstrap.Root,"official-menu.png"),FileMode.Create))await official.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,menuImage);
         reading.Checked=false;await Task.Delay(100);
         if(await official.CoreWebView2.ExecuteScriptAsync("document.documentElement.hasAttribute('data-shenqi-reading')")!="false")throw new IOException("无法恢复官方原样。");
+        if(await official.CoreWebView2.ExecuteScriptAsync("getComputedStyle(document.documentElement).fontSize")!="\"120px\"")throw new IOException("官方原始缩放未恢复。");
         reading.Checked=true;official.Source=new Uri(Home);await Task.Delay(1000);
         string command="(async()=>{const request=document.getElementById('request');request.value='想吃河粉 25元预算 一份';request.dispatchEvent(new Event('input'));document.getElementById('mealConsent').checked=true;await Desktop.inspect();document.getElementById('startMeal').click();})().catch(e=>document.getElementById('message').textContent=e.message);";
         await panel.CoreWebView2.ExecuteScriptAsync(command);
@@ -311,12 +313,12 @@ internal sealed class DesktopHost : Form
         if(singleSurface!="true")throw new IOException("右侧仍有重复的助手界面。");
         using(var left=new FileStream(Path.Combine(Bootstrap.Root,"panel.png"),FileMode.Create))await panel.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,left);
         using(var right=new FileStream(Path.Combine(Bootstrap.Root,"official-fixture.png"),FileMode.Create))await official.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,right);
-        WriteReport(new {ok=true,sourceGuards=true,embeddedBrowser=true,fullFixtureFlow=true,nonfoodExcluded=true,unsupportedRedirectStopped=true,reversibleOfficialReading=true,singleAssistantSurface=true,primaryActionVisible=true,narrowLayout=true,interruptedTaskNotResumed=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="TEST202610200001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
+        WriteReport(new {ok=true,sourceGuards=true,embeddedBrowser=true,fullFixtureFlow=true,nonfoodExcluded=true,unsupportedRedirectStopped=true,reversibleOfficialReading=true,desktopRemScaleCapped=true,singleAssistantSurface=true,primaryActionVisible=true,narrowLayout=true,interruptedTaskNotResumed=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="TEST202610200001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
         ExitCode=0;Close();
     }
     string Fixture(string path)
     {
-        string head="<!doctype html><meta charset='utf-8'><style>body{font:18px sans-serif;padding:30px;color:#352a22}button,.clickArea_mock{min-width:48px;min-height:40px;display:inline-block;margin:6px}.poilist-item{padding:20px;border:1px solid #ccc}.banner{padding:16px;background:#f4dfb9}dd{padding:20px}</style><div class='banner'>本地模拟 · 不连接真实美团 · 不会产生真实订单</div>";
+        string head="<!doctype html><meta charset='utf-8'><style>html{font-size:120px}h1{font-size:.44rem}body{font:18px sans-serif;padding:30px;color:#352a22}button,.clickArea_mock{min-width:48px;min-height:40px;display:inline-block;margin:6px}.poilist-item{padding:20px;border:1px solid #ccc}.banner{padding:16px;background:#f4dfb9}dd{padding:20px}</style><div class='banner'>本地模拟 · 不连接真实美团 · 不会产生真实订单</div>";
         if(path.EndsWith("/home"))return head+"<h1>测试附近商家</h1><div class='poilist-item' onclick=\"location.href='https://cactivityapi-sc.waimai.meituan.com/h5/sub-trade/restaurant/restaurant'\"><b class='poilist-item-info1name'>111医药馆（测试店）</b><p>起送￥20 配送￥0</p></div><div class='poilist-item' onclick=\"location.href='/waimai/mindex/menu?poi_id_str=fixture'\"><b class='poilist-item-info1name'>测试素炒河粉餐厅</b><p>起送￥10 配送￥2</p></div>";
         if(path.EndsWith("/menu"))return head+"<h1>测试素炒河粉餐厅</h1><dl><dd data-tag='spu'><div class='name_mock'>测试素炒河粉</div><div data-tag='price'>￥16.00</div><div class='sqt-menu-add-buttons'><button aria-label='加入购物车'><span class='clickArea_mock' onclick=\"document.getElementById('qty').textContent='1';document.getElementById('cart').textContent='1';document.getElementById('cart').setAttribute('aria-label','购物车，已选商品')\"></span></button><span id='qty'></span></div></dd></dl><button id='cart' aria-label='购物车，没有商品'></button><button onclick=\"location.href='/waimai/mindex/preview'\">去结算</button>";
         if(path.EndsWith("/preview"))return head+"<h1>测试订单预览</h1><div class='spuInfoList_mock'><span class='spuInfoSpan_mock'>测试素炒河粉</span><span class='spuAmount_mock'>x1</span></div><div class='promotion_mock' onclick=\"document.getElementById('coupons').hidden=false\"><span>美团红包</span><span class='promotionSelect_mock'>-￥3.00</span></div><div class='promotion_mock'><span>商家代金券</span><span class='promotionSelect_mock'>无可用</span></div><div id='coupons' hidden><div>可使用红包</div><div class='cell-wrapper'><span class='price-amount-container'>￥3.00</span><div class='coupon-wrapper'>模拟红包</div></div><button onclick=\"document.getElementById('coupons').hidden=true\">确认</button></div><div><span class='actual_mock'>￥15.00</span><button id='sqt-openh5-preview-submit-btn' onclick=\"localStorage.fixtureSubmits=String(Number(localStorage.fixtureSubmits||0)+1);location.href='/waimai/mindex/order-detail?orderId=TEST202610200001'\">提交订单</button></div>";

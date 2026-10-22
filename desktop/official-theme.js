@@ -4,7 +4,7 @@
   const style = document.createElement('style');
   style.id = 'shenqi-official-reading';
   style.textContent = `
-html[data-shenqi-reading] { --meal-paper:#f5f7f3; --meal-ink:#203028; --meal-muted:#647168; --meal-leaf:#21543e; --meal-line:#e4eae0; }
+html[data-shenqi-reading] { font-size:min(50px,13.333333vw)!important; --meal-paper:#f5f7f3; --meal-ink:#203028; --meal-muted:#647168; --meal-leaf:#21543e; --meal-line:#e4eae0; }
 html[data-shenqi-reading] body { background:var(--meal-paper)!important; color:var(--meal-ink); font-family:'Microsoft YaHei UI','Segoe UI',sans-serif!important; }
 html[data-shenqi-reading] :focus-visible { outline:2px solid var(--meal-leaf)!important; outline-offset:3px; }
 html[data-shenqi-reading="home"] .poilist-item { box-sizing:border-box; background:#fff!important; margin:10px 14px!important; padding:18px!important; border:1px solid var(--meal-line)!important; border-radius:16px!important; box-shadow:0 3px 12px #20302805; }
