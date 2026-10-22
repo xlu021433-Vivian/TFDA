@@ -65,7 +65,7 @@
     $('reload').disabled=running||actionBusy||stopping;
     $('stop').hidden=!running&&!(state.submissionAttempt&&!currentOrder)&&!state.schedule?.enabled;
     $('stop').disabled=stopping;$('stop').textContent=stopping?'正在暂停…':'暂停点餐与后续定时';
-    $('connection').textContent=page.error?'美团页面暂时无法打开':page.loginNeeded?'请先登录美团':page.ready?'美团页面已连接':'正在连接美团';
+    $('connection').textContent=page.error?'美团页面暂时无法打开':page.loginNeeded?'请先登录美团':page.ready?'美团内容已加载':'正在连接美团';
     $('dot').className='dot '+(page.error?'bad':page.ready&&!page.loginNeeded?'good':'');
     $('pageStatus').textContent=page.error|| (page.loginNeeded?'在右侧官方页面完成登录':page.ready?'登录与配送地址请在右侧核对':'稍等一下，正在准备官方页面');
     let title='正在准备这一餐',detail=page.status||'正在等待官方页面信息。',kind='';
