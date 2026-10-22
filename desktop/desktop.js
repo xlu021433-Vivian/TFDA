@@ -60,7 +60,7 @@
     $('startHint').textContent=reason||'准备好了。实际用券且最终金额不超预算，才会提交一次。';
     $('startHint').classList.toggle('bad',!!page.error||!parsed);
     $('startMeal').disabled=!!reason;
-    $('startMeal').textContent=actionBusy?'正在准备…':path()==='/waimai/mindex/menu'?'在这家店选餐':'帮我随机选餐';
+    $('startMeal').textContent=actionBusy?'正在准备…':path()==='/waimai/mindex/menu'?'在这家店选餐':parsed&&(parsed.category||parsed.keywords?.length)?'按需求帮我选餐':'帮我随机选餐';
     $('home').disabled=running||!!state.submissionAttempt||actionBusy||stopping;
     $('reload').disabled=running||actionBusy||stopping;
     $('stop').hidden=!running&&!(state.submissionAttempt&&!currentOrder)&&!state.schedule?.enabled;

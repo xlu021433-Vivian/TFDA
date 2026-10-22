@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const crypto=require('node:crypto');
-const folder=path.resolve(process.env.SHENQI_DESKTOP_ASSETS||'dist/desktop-0.5.0/assets');
+const folder=path.resolve(process.env.SHENQI_DESKTOP_ASSETS||'dist/desktop-0.5.1/assets');
 const P=require(path.join(folder,'policy.js')),S=require(path.join(folder,'schedule.js'));
 const sandbox={ShenqiPolicy:P,ShenqiSchedule:S,Date,crypto,structuredClone,URL};
 vm.runInNewContext(fs.readFileSync(path.join(folder,'worker.js'),'utf8'),sandbox);
@@ -17,6 +17,12 @@ function setup(initial={}){
   return {data,tabs,runtime,panel,page,api,notifications};
 }
 const request={type:'start_now',schedule:{...S.defaults,enabled:true,authorized:true}};
+
+test('worker rejects a medical store even if a page bypasses candidate filtering',async()=>{
+  const f=setup();await f.runtime.message(request,f.panel);const id=f.data.activeRun.id;
+  await assert.rejects(f.runtime.message({type:'schedule_shop',id,name:'111医药馆（丈八北路店）',minimum:2000},f.page));
+  assert.equal(f.data.activeRun.stage,'home');assert.deepEqual(f.data.activeRun.tried,[]);
+});
 test('one meal can run with recurrence off, without enabling recurrence',async()=>{
   const f=setup({schedule:{...S.defaults,enabled:false}});await f.runtime.message(request,f.panel);
   assert.equal(f.data.schedule.enabled,false);assert.equal(f.data.activeRun.oneShot,true);assert.equal(f.tabs.length,1);

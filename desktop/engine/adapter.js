@@ -10,6 +10,7 @@
     const scope = () => `${win.location.origin}${win.location.pathname}|${new URL(win.location.href).searchParams.get('poi_id_str') || ''}`;
     function ensure(expected) {
       if (!policy.supported(win.location.href) || !/\/waimai\/mindex\/menu\/?$/.test(win.location.pathname)) throw Error('请回到美团商家菜单页操作');
+      if (doc.title && !policy.foodShop(doc.title)) throw Error('当前是非餐饮商家，已停止选餐和加购');
       if (expected && scope() !== expected) throw Error('页面或商家已变化，已停止后续操作');
     }
     function cards() {
@@ -222,8 +223,13 @@
         const minimum=policy.price(body.match(/起送\s*[¥￥]\s*\d+(?:\.\d{1,2})?/)?.[0]||'');
         const delivery=policy.price(body.match(/配送\s*约?\s*[¥￥]\s*\d+(?:\.\d{1,2})?/)?.[0]||'');
         return {name,minimum,delivery,element,body};
-      }).filter(item=>item.name&&!tried.includes(item.name)&&!policy.inspectName(item.name)&&! /药房|药店|药品|医院|门诊|快递电商|烟酒|鲜花|数码|日百|宠物|生日蛋糕/.test(item.name)&&!/休息中|暂停营业|超出配送/.test(item.body)&&item.minimum!==null&&item.delivery!==null&&item.minimum+item.delivery<=budget&&(category?true:!/奶茶|咖啡|茶姬|奶白|喜茶|奈雪|甜品|蛋糕|一点点|1点点/.test(item.name)))
+      }).filter(item=>item.name&&!tried.includes(item.name)&&!policy.inspectName(item.name)&&policy.foodShop(item.name)&&!/休息中|暂停营业|超出配送/.test(item.body)&&item.minimum!==null&&item.delivery!==null&&item.minimum+item.delivery<=budget&&(category?true:!/奶茶|咖啡|茶姬|奶白|喜茶|奈雪|甜品|蛋糕|一点点|1点点/.test(item.name)))
         .filter(item=>!['奶茶','果茶','咖啡'].includes(category)||(category==='咖啡'?/咖啡|瑞幸|库迪|星巴克|Manner|Costa/i:/茶|奶|蜜雪|古茗|沪上|一点点|1点点|CoCo|益禾|甜啦/i).test(item.name));
+    }
+    function openShop(chosen,budget,request,tried=[]) {
+      const current=shops(budget,request,tried).find(item=>item.element===chosen.element&&item.name===chosen.name);
+      if(!current||!current.element.isConnected||!visible(current.element))throw Error('商家列表已变化，停止跳转，请重新核对');
+      current.element.click();
     }
     async function confirmDefaultSpecs(pending,budget,request={},shouldStop=()=>false){
       const checkStop=()=>{if(shouldStop())throw Error('已停止规格选择和加购');};checkStop();
@@ -288,7 +294,7 @@
       button.click(); // Exactly one submission attempt; payment controls are never selected.
       return {status:'attempted'};
     }
-    return {cards, cart, add, verifyManual, confirmDefaultSpecs,shops,checkout, scope, specDialog, ensure, previewTotal, couponRows, applyCoupons, previewFingerprint, previewItems, createUnpaid, isUncertain: () => uncertain};
+    return {cards, cart, add, verifyManual, confirmDefaultSpecs,shops,openShop,checkout, scope, specDialog, ensure, previewTotal, couponRows, applyCoupons, previewFingerprint, previewItems, createUnpaid, isUncertain: () => uncertain};
   }
   const api = {create};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

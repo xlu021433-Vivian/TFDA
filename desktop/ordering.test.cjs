@@ -6,6 +6,16 @@ const {JSDOM}=(()=>{try{return require('jsdom');}catch{return require('../.tool-
 const P=require('./engine/policy.js');
 const {create}=require('./engine/adapter.js');
 
+test('the real missed medical-store category and recycled shop cards cannot be opened for lunch',t=>{
+  const dom=new JSDOM('<body>'+['111医药馆（丈八北路店）','大药房','社区诊所','鲜花速递','牛肉河粉餐厅'].map(name=>'<div class="poilist-item"><b class="poilist-item-info1name">'+name+'</b><p>起送￥15 配送约￥0</p></div>').join('')+'</body>',{url:'https://h5.waimai.meituan.com/waimai/mindex/home'});t.after(()=>dom.window.close());
+  const d=dom.window.document,a=create(d,{visible:()=>true}),shops=a.shops(2500,'想吃河粉 25元预算 一份');
+  assert.deepEqual(shops.map(x=>x.name),['牛肉河粉餐厅']);let clicks=0;shops[0].element.onclick=()=>clicks++;
+  shops[0].element.querySelector('b').textContent='111医药馆';assert.throws(()=>a.openShop(shops[0],2500,'河粉'),/列表已变化/);assert.equal(clicks,0);
+});
+test('a medical store on the menu route cannot mutate a cart',async t=>{
+  const f=fixture(t);f.d.title='111医药馆（丈八北路店）';await assert.rejects(f.adapter.add(f.key,2500),/非餐饮/);assert.equal(f.counts().clicks,0);
+});
+
 test('the reported river-noodle sentence and common budget orders are understood',()=>{
   for(const text of ['想吃河粉 25元预算 一份','想吃河粉，预算25，一份','请帮我点一份河粉，二十五元以内']){
     const request=P.intent(text);assert.equal(request.category,'面条');assert.equal(request.quantity,1);assert.equal(request.budget,2500);assert.deepEqual(request.keywords,['河粉']);

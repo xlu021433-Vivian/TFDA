@@ -301,7 +301,7 @@
         const chosen=candidates[Math.floor(Math.random()*candidates.length)];
         await message({type:'schedule_shop',id:task.id,name:chosen.name,minimum:chosen.minimum});
         if(stopped)throw Error('已暂停选店');
-        status('定时随机选店：'+chosen.name);chosen.element.click();return;
+        status('正在选择商家：'+chosen.name);adapter.openShop(chosen,task.config.budget,task.config.request,task.tried);return;
       }
       if(task.stage!=='menu')throw Error('购物车阶段无法核对，不会重复加购');
       adapter.ensure();if(adapter.cart().count!==0)throw Error('商家已有购物车商品，无法确认来源，今日不自动修改');

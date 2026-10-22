@@ -29,6 +29,9 @@
     try { const u = new URL(url); return u.protocol === 'https:' && u.hostname === 'h5.waimai.meituan.com' && !u.port && !u.username && !u.password; }
     catch { return false; }
   }
+  function foodShop(name) {
+    return typeof name==='string' && !!name.trim() && !/医药|药房|药店|药品|药局|医院|门诊|诊所|医疗|快递电商|烟酒|鲜花|数码|日百|宠物|生日蛋糕/.test(name);
+  }
   function checkPlan(items, budget) {
     if (!Number.isSafeInteger(budget) || budget <= 0) throw Error('请填写有效的预算上限');
     if (!items.length) throw Error('请先勾选菜品');
@@ -129,7 +132,7 @@
     return {ok:true,message:'已核对券实际抵扣，当前官方合计在预算内'};
   }
   const money = value => value === null ? '待核对' : `¥${(value / 100).toFixed(2)}`;
-  const api = {cents, price, inspectName, supported, checkPlan, intent, describe, matches, optionPatterns, optionMatches, randomPlan, previewVerdict, money};
+  const api = {cents, price, inspectName, supported, foodShop, checkPlan, intent, describe, matches, optionPatterns, optionMatches, randomPlan, previewVerdict, money};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ShenqiPolicy = api;
 })(globalThis);

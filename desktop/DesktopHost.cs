@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -18,6 +19,7 @@ internal sealed class DesktopHost : Form
     readonly Label loading=new Label();
     readonly NotifyIcon tray=new NotifyIcon();
     readonly Timer timer=new Timer();
+    readonly CheckBox reading=new CheckBox();
     readonly TaskCompletionSource<bool> panelReady=new TaskCompletionSource<bool>();
     bool initialized,injecting;
     bool? lastBark;
@@ -37,6 +39,12 @@ internal sealed class DesktopHost : Form
         BackColor=Color.FromArgb(245,247,243);
         var split=new SplitContainer { Size=new Size(1280,850),Dock=DockStyle.Fill,FixedPanel=FixedPanel.Panel1,SplitterWidth=1,SplitterDistance=396,Panel1MinSize=360,Panel2MinSize=560 };
         Controls.Add(split);panel.Dock=DockStyle.Fill;official.Dock=DockStyle.Fill;split.Panel1.Controls.Add(panel);split.Panel2.Controls.Add(official);
+        var officialBar=new Panel {Dock=DockStyle.Top,Height=40,BackColor=Color.FromArgb(245,247,243),Padding=new Padding(16,0,12,0)};
+        officialBar.Controls.Add(new Label {Text="美团 · 官方页面",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Color.FromArgb(100,113,104),Font=new Font("Microsoft YaHei UI",9)});
+        object savedReading;reading.Checked=!store.Engine.TryGetValue("officialReading",out savedReading)||Convert.ToBoolean(savedReading);
+        reading.Text="舒适排版";reading.Dock=DockStyle.Right;reading.Width=110;reading.Font=new Font("Microsoft YaHei UI",9);reading.ForeColor=Color.FromArgb(33,84,62);
+        officialBar.Controls.Add(reading);split.Panel2.Controls.Add(officialBar);officialBar.BringToFront();
+        reading.CheckedChanged+=async delegate {store.Change(new Dictionary<string,object>{{"officialReading",reading.Checked}});if(official.CoreWebView2!=null&&IsOfficial(official.Source.AbsoluteUri))await official.CoreWebView2.ExecuteScriptAsync("globalThis.ShenqiReading?.setEnabled("+(reading.Checked?"true":"false")+")");};
         loading.Dock=DockStyle.Fill;loading.Text="正在准备神器…\n无需安装浏览器扩展。";loading.TextAlign=ContentAlignment.MiddleCenter;loading.Font=new Font("Microsoft YaHei UI",14);Controls.Add(loading);loading.BringToFront();
         tray.Icon=SystemIcons.Information;tray.Text="神器 · 关闭窗口会停止定时";tray.Visible=!Bootstrap.Test;
         tray.DoubleClick+=delegate { Show();WindowState=FormWindowState.Normal;Activate(); };
@@ -54,6 +62,19 @@ internal sealed class DesktopHost : Form
         var stopped=new Dictionary<string,object>(run);
         stopped["stage"]="stopped";stopped["reason"]="上次窗口已关闭，旧任务未恢复。已加购商品或提交结果请先在美团核对。";
         local.Change(new Dictionary<string,object>{{"activeRun",stopped}});
+    }
+    internal static string UnsupportedPage(string value)
+    {
+        if(value=="about:blank"||IsOfficial(value))return null;
+        return "当前官方页面不支持自动点餐，任务已停止。请回到美团外卖首页选择餐饮商家；尚未确认新订单。";
+    }
+    internal static void StopUnsupportedTask(LocalStore local,string reason)
+    {
+        object value;if(!local.Engine.TryGetValue("activeRun",out value))return;
+        var run=value as Dictionary<string,object>;
+        if(run==null||!run.ContainsKey("stage")||new[]{"done","failed","stopped"}.Contains(Convert.ToString(run["stage"])))return;
+        var failed=new Dictionary<string,object>(run);failed["stage"]="failed";failed["reason"]=reason;
+        local.Change(new Dictionary<string,object>{{"activeRun",failed}});
     }
     internal static bool IsPanel(string value)
     { Uri uri;return Uri.TryCreate(value,UriKind.Absolute,out uri)&&uri.Scheme=="https"&&uri.Host=="shenqi.local"&&uri.IsDefaultPort&&uri.AbsolutePath=="/options.html"&&uri.Query==""; }
@@ -93,15 +114,18 @@ internal sealed class DesktopHost : Form
             official.CoreWebView2.NavigationCompleted+=async delegate(object sender,CoreWebView2NavigationCompletedEventArgs args){
                 if(!args.IsSuccess){SendPageState(false,"网页加载失败："+args.WebErrorStatus,false);return;}
                 if(lastHttpError!=null){SendPageState(false,lastHttpError,false);return;}
-                bool supported=IsOfficial(official.Source.AbsoluteUri);SendPageState(supported,null,true);if(supported)await Inject();
+                bool supported=IsOfficial(official.Source.AbsoluteUri);
+                string unsupported=UnsupportedPage(official.Source.AbsoluteUri);
+                if(unsupported!=null)StopUnsupportedTask(store,unsupported);
+                SendPageState(supported,unsupported,true);if(supported){await Inject();await official.CoreWebView2.ExecuteScriptAsync("globalThis.ShenqiReading?.setEnabled("+(reading.Checked?"true":"false")+")");}
             };
             official.CoreWebView2.WebResourceResponseReceived+=delegate(object sender,CoreWebView2WebResourceResponseReceivedEventArgs args){
                 if(official.Source!=null&&args.Request.Uri==official.Source.AbsoluteUri&&args.Response.StatusCode>=400)
                 {lastHttpError="官方网页返回 HTTP "+args.Response.StatusCode+"，请稍后重试。尚未确认新订单。";SendPageState(false,lastHttpError,false);}
             };
             string script="if(window===window.top&&location.origin==='https://h5.waimai.meituan.com'){\n";
-            foreach(string name in new[]{"page-bridge.js","guard-data.js","policy.js","schedule.js","adapter.js","styles.js"})script+=Asset(name)+"\n";
-            await official.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(script+"\n}");
+            foreach(string name in new[]{"page-bridge.js","guard-data.js","policy.js","schedule.js","adapter.js","styles.js","official-theme.js"})script+=Asset(name)+"\n";
+            await official.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(script+"\nglobalThis.ShenqiReading?.setEnabled("+(reading.Checked?"true":"false")+");\n}");
             if(Bootstrap.Test)
             {
                 official.CoreWebView2.AddWebResourceRequestedFilter("*",CoreWebView2WebResourceContext.All);
@@ -157,7 +181,7 @@ internal sealed class DesktopHost : Form
             case "storage_set":store.Change((Dictionary<string,object>)args["change"]);return new {ok=true};
             case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);return new {ok=true};
             case "panel_ready":panelReady.TrySetResult(true);return new {ok=true};
-            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.5.0"};
+            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.5.1"};
             case "navigate":
                 string url=Convert.ToString(args["url"]);if(!AllowedNavigation(url))throw new IOException("只允许打开美团官方 HTTPS 网页。");official.Source=new Uri(url);return new {id=1};
             case "reload":if(official.CoreWebView2!=null)official.CoreWebView2.Reload();return new {ok=true};
@@ -178,7 +202,7 @@ internal sealed class DesktopHost : Form
                 return new {ok=true};
             case "notify":return await Notify(args);
             case "diagnostics":
-                return new {message="程序：0.5.0\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
+                return new {message="程序：0.5.1\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n桌面控制台错误："+errors.Count};
             default:throw new IOException("不支持此操作。");
         }
     }
@@ -248,6 +272,14 @@ internal sealed class DesktopHost : Form
             using(var image=new FileStream(Path.Combine(Bootstrap.Root,"panel-"+tab+".png"),FileMode.Create))await panel.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,image);
         }
         await panel.CoreWebView2.ExecuteScriptAsync("document.getElementById('mealTab').click()");
+        if(await official.CoreWebView2.ExecuteScriptAsync("document.documentElement.getAttribute('data-shenqi-reading')")=="null")throw new IOException("首页舒适排版未加载。");
+        using(var homeImage=new FileStream(Path.Combine(Bootstrap.Root,"official-home.png"),FileMode.Create))await official.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,homeImage);
+        official.Source=new Uri("https://h5.waimai.meituan.com/waimai/mindex/menu?poi_id_str=fixture");await Task.Delay(900);
+        if(await official.CoreWebView2.ExecuteScriptAsync("document.documentElement.getAttribute('data-shenqi-reading')")!="\"menu\"")throw new IOException("菜单舒适排版未加载。");
+        using(var menuImage=new FileStream(Path.Combine(Bootstrap.Root,"official-menu.png"),FileMode.Create))await official.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,menuImage);
+        reading.Checked=false;await Task.Delay(100);
+        if(await official.CoreWebView2.ExecuteScriptAsync("document.documentElement.hasAttribute('data-shenqi-reading')")!="false")throw new IOException("无法恢复官方原样。");
+        reading.Checked=true;official.Source=new Uri(Home);await Task.Delay(1000);
         string command="(async()=>{const request=document.getElementById('request');request.value='想吃河粉 25元预算 一份';request.dispatchEvent(new Event('input'));document.getElementById('mealConsent').checked=true;await Desktop.inspect();document.getElementById('startMeal').click();})().catch(e=>document.getElementById('message').textContent=e.message);";
         await panel.CoreWebView2.ExecuteScriptAsync(command);
         bool done=false;
@@ -268,6 +300,10 @@ internal sealed class DesktopHost : Form
         var interrupted=new Dictionary<string,object>(finished);interrupted["stage"]="preview";
         store.Change(new Dictionary<string,object>{{"activeRun",interrupted}});StopInterruptedTask(store);
         if(Convert.ToString(((Dictionary<string,object>)store.Engine["activeRun"])["stage"])!="stopped"||!Convert.ToBoolean(store.Engine["submissionAttempt"])||!store.Engine.ContainsKey("attemptMeta"))throw new IOException("重开后旧任务或提交防重记录处理异常。");
+        var redirected=new Dictionary<string,object>(finished);redirected["stage"]="menu";
+        store.Change(new Dictionary<string,object>{{"activeRun",redirected}});
+        StopUnsupportedTask(store,UnsupportedPage("https://cactivityapi-sc.waimai.meituan.com/h5/sub-trade/restaurant/restaurant"));
+        if(Convert.ToString(((Dictionary<string,object>)store.Engine["activeRun"])["stage"])!="failed"||!Convert.ToBoolean(store.Engine["submissionAttempt"]))throw new IOException("不支持的商家跳转未停止任务或丢失防重记录。");
         store.Change(new Dictionary<string,object>{{"activeRun",finished}});
         await panel.CoreWebView2.ExecuteScriptAsync("Desktop.inspect()");await Task.Delay(400);
         await Inject();
@@ -275,13 +311,13 @@ internal sealed class DesktopHost : Form
         if(singleSurface!="true")throw new IOException("右侧仍有重复的助手界面。");
         using(var left=new FileStream(Path.Combine(Bootstrap.Root,"panel.png"),FileMode.Create))await panel.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,left);
         using(var right=new FileStream(Path.Combine(Bootstrap.Root,"official-fixture.png"),FileMode.Create))await official.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,right);
-        WriteReport(new {ok=true,sourceGuards=true,embeddedBrowser=true,fullFixtureFlow=true,singleAssistantSurface=true,primaryActionVisible=true,narrowLayout=true,interruptedTaskNotResumed=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="TEST202610200001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
+        WriteReport(new {ok=true,sourceGuards=true,embeddedBrowser=true,fullFixtureFlow=true,nonfoodExcluded=true,unsupportedRedirectStopped=true,reversibleOfficialReading=true,singleAssistantSurface=true,primaryActionVisible=true,narrowLayout=true,interruptedTaskNotResumed=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="TEST202610200001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
         ExitCode=0;Close();
     }
     string Fixture(string path)
     {
         string head="<!doctype html><meta charset='utf-8'><style>body{font:18px sans-serif;padding:30px;color:#352a22}button,.clickArea_mock{min-width:48px;min-height:40px;display:inline-block;margin:6px}.poilist-item{padding:20px;border:1px solid #ccc}.banner{padding:16px;background:#f4dfb9}dd{padding:20px}</style><div class='banner'>本地模拟 · 不连接真实美团 · 不会产生真实订单</div>";
-        if(path.EndsWith("/home"))return head+"<h1>测试附近商家</h1><div class='poilist-item' onclick=\"location.href='/waimai/mindex/menu?poi_id_str=fixture'\"><b class='poilist-item-info1name'>测试素炒河粉餐厅</b><p>起送￥10 配送￥2</p></div>";
+        if(path.EndsWith("/home"))return head+"<h1>测试附近商家</h1><div class='poilist-item' onclick=\"location.href='https://cactivityapi-sc.waimai.meituan.com/h5/sub-trade/restaurant/restaurant'\"><b class='poilist-item-info1name'>111医药馆（测试店）</b><p>起送￥20 配送￥0</p></div><div class='poilist-item' onclick=\"location.href='/waimai/mindex/menu?poi_id_str=fixture'\"><b class='poilist-item-info1name'>测试素炒河粉餐厅</b><p>起送￥10 配送￥2</p></div>";
         if(path.EndsWith("/menu"))return head+"<h1>测试素炒河粉餐厅</h1><dl><dd data-tag='spu'><div class='name_mock'>测试素炒河粉</div><div data-tag='price'>￥16.00</div><div class='sqt-menu-add-buttons'><button aria-label='加入购物车'><span class='clickArea_mock' onclick=\"document.getElementById('qty').textContent='1';document.getElementById('cart').textContent='1';document.getElementById('cart').setAttribute('aria-label','购物车，已选商品')\"></span></button><span id='qty'></span></div></dd></dl><button id='cart' aria-label='购物车，没有商品'></button><button onclick=\"location.href='/waimai/mindex/preview'\">去结算</button>";
         if(path.EndsWith("/preview"))return head+"<h1>测试订单预览</h1><div class='spuInfoList_mock'><span class='spuInfoSpan_mock'>测试素炒河粉</span><span class='spuAmount_mock'>x1</span></div><div class='promotion_mock' onclick=\"document.getElementById('coupons').hidden=false\"><span>美团红包</span><span class='promotionSelect_mock'>-￥3.00</span></div><div class='promotion_mock'><span>商家代金券</span><span class='promotionSelect_mock'>无可用</span></div><div id='coupons' hidden><div>可使用红包</div><div class='cell-wrapper'><span class='price-amount-container'>￥3.00</span><div class='coupon-wrapper'>模拟红包</div></div><button onclick=\"document.getElementById('coupons').hidden=true\">确认</button></div><div><span class='actual_mock'>￥15.00</span><button id='sqt-openh5-preview-submit-btn' onclick=\"localStorage.fixtureSubmits=String(Number(localStorage.fixtureSubmits||0)+1);location.href='/waimai/mindex/order-detail?orderId=TEST202610200001'\">提交订单</button></div>";
         return head+"<h1>待支付</h1><p>订单号：TEST202610200001</p><p>待支付金额：￥15.00</p><button>由本人付款</button>";

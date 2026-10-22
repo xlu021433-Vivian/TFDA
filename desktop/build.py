@@ -46,7 +46,7 @@ def build(package,output):
     original=b'  document.documentElement.appendChild(host);'
     assert files['content.js'].count(original)==1
     files['content.js']=files['content.js'].replace(original,b"  host.style.setProperty('display','none','important');\n  host.setAttribute('aria-hidden','true');\n"+original)
-    for name in ('options.html','desktop.css','desktop.js','page-bridge.js'):
+    for name in ('options.html','desktop.css','desktop.js','page-bridge.js','official-theme.js'):
         files[name]=(ROOT/'desktop'/name).read_bytes()
     files['worker.js']=worker()
     with zipfile.ZipFile(package) as sdk:
@@ -68,4 +68,4 @@ def build(package,output):
     print(json.dumps({'exe':str(executable),'bytes':executable.stat().st_size,'sha256':digest,'sdk':SDK},ensure_ascii=False))
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/'dist/desktop-0.5.0');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/'dist/desktop-0.5.1');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())
