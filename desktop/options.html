@@ -8,7 +8,7 @@
 <body>
 <header class="app-header">
   <div class="brand"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M5 16h22c-1 7-5 10-11 10S6 23 5 16Z" stroke="currentColor" stroke-width="1.6"/><path d="M11 6c-3 3 3 4 0 7m9-9c-3 3 3 4 0 7M10 29h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><div><b>神器<span class="brand-period">.</span></b><small>A LITTLE MEAL, WITH CARE</small></div></div>
-  <span class="version">0.6.1 <span>L5 用餐便签</span></span>
+  <span class="version">0.6.2 <span>L5 用餐便签</span></span>
 </header>
 <div class="connection"><span id="dot" class="dot"></span><div><b id="connection">正在连接美团</b><small id="pageStatus">稍等一下，正在准备官方页面</small></div><button id="reload" class="icon-button" title="重新加载美团页面" aria-label="重新加载美团页面"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M19 9a7 7 0 1 0 .2 6M19 4v5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
 <div class="phone-connect"><div><b id="phoneTitle">在手机上点餐</b><small id="phoneDetail">l5space.icu/shenqi/ · 仅L5管理员</small></div><button id="connectPhone" type="button">连接手机</button></div>
@@ -16,7 +16,7 @@
 <main>
 <section id="meal" class="tab active" role="tabpanel" aria-labelledby="mealTab">
   <div class="section-heading"><span class="eyebrow"><span aria-hidden="true">✳</span> A LITTLE BREAK, A LOVELY MEAL</span><h1>今天这一餐，<em>交给我吧。</em></h1><p>好好吃饭，也留一点时间给自己。</p></div>
-  <div id="flow" class="flow" hidden><div class="flow-heading"><span class="status-mark" aria-hidden="true"></span><b id="flowTitle">正在准备这一餐</b></div><p id="flowDetail"></p><ol id="steps" class="steps" aria-label="点餐进度"><li data-step="home"><span>1</span>选店</li><li data-step="menu"><span>2</span>加购</li><li data-step="preview"><span>3</span>用券</li><li data-step="done"><span>4</span>待支付</li></ol></div>
+  <div id="flow" class="flow" hidden><div class="flow-heading"><span class="status-mark" aria-hidden="true"></span><b id="flowTitle">正在准备这一餐</b></div><p id="flowDetail"></p><ol id="steps" class="steps" aria-label="点餐进度"><li data-step="home"><span>1</span>选店</li><li data-step="menu"><span>2</span>加购</li><li data-step="preview"><span>3</span>用券</li><li data-step="done"><span>4</span>待支付</li></ol><button id="recoverHome" class="primary wide" hidden>返回外卖首页</button></div>
   <section id="manualSpecs" class="manual-card" hidden aria-labelledby="specHeading"><span class="eyebrow">需要你来选</span><h2 id="specHeading">确认一下餐品规格</h2><p>在右侧官方弹窗选择规格，只加入 <b>1 份</b>。核对后在这里继续，已加好的份数不会重复添加。</p><label class="consent"><input id="specConsent" type="checkbox"><span>我已核对食材、糖度等要求，并在官方弹窗只加了1份。</span></label><button id="resumeSpecs" class="primary wide" disabled>核对并继续</button></section>
   <div id="order" class="order" hidden><div class="order-heading"><span class="order-check" aria-hidden="true">✓</span><div><b>这一餐，等你付款</b><small>已识别官方待支付订单</small></div></div><dl><div><dt>订单号</dt><dd id="orderId"></dd></div><div><dt>待支付</dt><dd id="orderAmount"></dd></div></dl><button id="openOrder" class="primary wide">查看官方订单</button><p>请在美团有效期内本人付款。</p></div>
   <div id="requestForm">

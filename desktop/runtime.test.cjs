@@ -22,7 +22,7 @@ const request={type:'start_now',schedule:{...S.defaults,enabled:true,authorized:
 
 test('worker rejects a medical store even if a page bypasses candidate filtering',async()=>{
   const f=setup();await f.runtime.message(request,f.panel);const id=f.data.activeRun.id;
-  await assert.rejects(f.runtime.message({type:'schedule_shop',id,name:'111医药馆（丈八北路店）',minimum:2000},f.page));
+  for(const name of ['111医药馆（丈八北路店）','EyeSoul隐形眼镜（丈八店）','某某商贸'])await assert.rejects(f.runtime.message({type:'schedule_shop',id,name,minimum:2000},f.page));
   assert.equal(f.data.activeRun.stage,'home');assert.deepEqual(f.data.activeRun.tried,[]);
 });
 test('one meal can run with recurrence off, without enabling recurrence',async()=>{

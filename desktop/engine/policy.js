@@ -29,8 +29,12 @@
     try { const u = new URL(url); return u.protocol === 'https:' && u.hostname === 'h5.waimai.meituan.com' && !u.port && !u.username && !u.password; }
     catch { return false; }
   }
-  function foodShop(name) {
-    return typeof name==='string' && !!name.trim() && !/医药|药房|药店|药品|药局|医院|门诊|诊所|医疗|快递电商|烟酒|鲜花|数码|日百|宠物|生日蛋糕/.test(name);
+  function foodShop(name, requireEvidence=false) {
+    if(typeof name!=='string'||!name.trim())return false;
+    // A merchant is not a restaurant merely because it has a delivery price.
+    if(/医药|药房|药店|药品|药局|医院|门诊|诊所|医疗|快递电商|烟酒|鲜花|花艺|数码|日百|百货|超市|便利店|宠物|生日蛋糕|隐形眼镜|眼镜|美瞳|护理液|护肤|美妆|彩妆|面膜|粉底|日用品|成人用品|情趣|五金|手机维修|文具|珠宝|服饰|鞋帽|母婴|玩具|绿植/.test(name))return false;
+    if(!requireEvidence)return true; // Generic official document titles need not be merchant names.
+    return /餐|饭|河粉|米粉|米线|螺蛳粉|酸辣粉|肠粉|面馆|面条|拉面|牛肉面|拌面|烩面|刀削面|油泼面|削筋面|粥|饼|饺|包子|汤包|馄饨|抄手|云吞|馍|麻辣烫|麻辣拌|冒菜|凉皮|轻食|沙拉|汉堡|披萨|寿司|烤|炸鸡|黄焖鸡|鸡公煲|牛排|烧腊|烧鹅|卤味|熟食|便当|小吃|麻辣香锅|火锅|关东煮|煲仔|沙县|兰州|桂林|柳州|奶茶|咖啡|果茶|柠檬茶|甜品|冰淇淋|鲜奶|豆浆|肯德基|麦当劳|德克士|华莱士|塔斯汀|必胜客|老乡鸡|乡村基|大米先生|真功夫|瑞幸|库迪|星巴克|蜜雪|古茗|茶百道|沪上阿姨|霸王茶姬|茉莉奶白|喜茶|奈雪|一点点|1点点|益禾堂|甜啦啦|CoCo|Manner|Costa|茶话弄/i.test(name);
   }
   function checkPlan(items, budget) {
     if (!Number.isSafeInteger(budget) || budget <= 0) throw Error('请填写有效的预算上限');

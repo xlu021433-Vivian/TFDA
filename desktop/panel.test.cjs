@@ -71,3 +71,11 @@ test('remote pause is available without initiating or enabling a meal',async t=>
   assert.equal(result.ok,true);assert.ok(f.nativeCalls.some(x=>x.action==='page_command'&&x.args.body.type==='stop_scheduled'));
   assert.equal(f.messages.filter(x=>x.type==='start_now').length,0);
 });
+
+
+test('unsupported-page recovery only returns home and never starts or submits a meal',async t=>{
+  const f=await panel(t,{initial:{activeRun:{id:'wrong-store',stage:'failed'}}});
+  f.emit({ready:false,error:'当前是非餐饮商家，已停止选餐和加购。'});await pause();assert.equal(f.$('recoverHome').hidden,false);
+  f.$('recoverHome').click();await pause();assert.ok(f.nativeCalls.some(x=>x.action==='navigate'&&x.args.url==='https://h5.waimai.meituan.com/waimai/mindex/home'));assert.equal(f.messages.length,0);
+  f.data.submissionAttempt=true;await f.w.Desktop.inspect();assert.equal(f.$('recoverHome').hidden,true);
+});

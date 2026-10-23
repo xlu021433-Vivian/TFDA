@@ -7,13 +7,23 @@ const P=require('./engine/policy.js');
 const {create}=require('./engine/adapter.js');
 
 test('the real missed medical-store category and recycled shop cards cannot be opened for lunch',t=>{
-  const dom=new JSDOM('<body>'+['111医药馆（丈八北路店）','大药房','社区诊所','鲜花速递','牛肉河粉餐厅'].map(name=>'<div class="poilist-item"><b class="poilist-item-info1name">'+name+'</b><p>起送￥15 配送约￥0</p></div>').join('')+'</body>',{url:'https://h5.waimai.meituan.com/waimai/mindex/home'});t.after(()=>dom.window.close());
+  const dom=new JSDOM('<body>'+['111医药馆（丈八北路店）','大药房','社区诊所','鲜花速递','EyeSoul隐形眼镜（丈八店）','咖啡色美瞳眼镜店','某某商贸','牛肉河粉餐厅'].map(name=>'<div class="poilist-item"><b class="poilist-item-info1name">'+name+'</b><p>起送￥15 配送约￥0</p></div>').join('')+'</body>',{url:'https://h5.waimai.meituan.com/waimai/mindex/home'});t.after(()=>dom.window.close());
   const d=dom.window.document,a=create(d,{visible:()=>true}),shops=a.shops(2500,'想吃河粉 25元预算 一份');
   assert.deepEqual(shops.map(x=>x.name),['牛肉河粉餐厅']);let clicks=0;shops[0].element.onclick=()=>clicks++;
   shops[0].element.querySelector('b').textContent='111医药馆';assert.throws(()=>a.openShop(shops[0],2500,'河粉'),/列表已变化/);assert.equal(clicks,0);
 });
-test('a medical store on the menu route cannot mutate a cart',async t=>{
-  const f=fixture(t);f.d.title='111医药馆（丈八北路店）';await assert.rejects(f.adapter.add(f.key,2500),/非餐饮/);assert.equal(f.counts().clicks,0);
+test('known food evidence and supported merchant links are required before navigation',t=>{
+  for(const name of ['EyeSoul隐形眼镜（丈八店）','冷泡乌龙茶美瞳','茶色彩妆店','某某商贸'])assert.equal(P.foodShop(name,true),false,name);
+  for(const name of ['牛肉河粉餐厅','肯德基','茶话弄','老乡鸡','三米粥铺'])assert.equal(P.foodShop(name,true),true,name);
+  const unsupported='https://cactivityapi-sc.waimai.meituan.com/h5/sub-trade/restaurant/restaurant';
+  const html=href=>'<div class="poilist-item"><a href="'+href+'"><b class="poilist-item-info1name">牛肉河粉餐厅</b></a><p>起送￥15 配送￥0</p></div>';
+  const dom=new JSDOM(html(unsupported)+html('/waimai/mindex/menu?poi_id_str=food'),{url:'https://h5.waimai.meituan.com/waimai/mindex/home'});t.after(()=>dom.window.close());
+  const a=create(dom.window.document,{visible:()=>true});assert.equal(a.shops(2500,'河粉').length,1);
+  const chosen=a.shops(2500,'河粉')[0];chosen.element.querySelector('a').href=unsupported;assert.throws(()=>a.openShop(chosen,2500,'河粉'),/列表已变化/);
+});
+
+test('medical and contact-lens stores on the menu route cannot mutate a cart',async t=>{
+  for(const title of ['111医药馆（丈八北路店）','EyeSoul隐形眼镜（丈八店）']){const f=fixture(t);f.d.title=title;await assert.rejects(f.adapter.add(f.key,2500),/非餐饮/);assert.equal(f.counts().clicks,0);}
 });
 
 test('the reported river-noodle sentence and common budget orders are understood',()=>{

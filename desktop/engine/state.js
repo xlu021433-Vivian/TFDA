@@ -83,7 +83,7 @@ if(typeof importScripts==='function')importScripts('guard-data.js','policy.js','
       }
       if(message.type==='schedule_shop'){
         const run=validRun(state,sender,message.id);
-        if(typeof message.name!=='string'||!P.foodShop(message.name)||message.name.length>100||run.tried.length>=5||!Number.isSafeInteger(message.minimum))throw Error('已达到选店次数或店铺信息无效');
+        if(typeof message.name!=='string'||!P.foodShop(message.name,true)||message.name.length>100||run.tried.length>=5||!Number.isSafeInteger(message.minimum))throw Error('已达到选店次数或店铺信息无效');
         await api.storage.local.set({activeRun:{...run,stage:'menu',shopName:message.name,minimum:message.minimum,tried:[...run.tried,message.name]}});return {ok:true};
       }
       if(message.type==='schedule_failed'){validRun(state,sender,message.id);return fail(state,String(message.reason||'页面未提供可用点餐流程').slice(0,160));}

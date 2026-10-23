@@ -126,9 +126,10 @@ internal sealed class DesktopHost : Form
         stopped["stage"]="stopped";stopped["reason"]="上次窗口已关闭，旧任务未恢复。已加购商品或提交结果请先在美团核对。";
         local.Change(new Dictionary<string,object>{{"activeRun",stopped}});
     }
-    internal static string UnsupportedPage(string value)
+    internal static string UnsupportedPage(string value,string title=null)
     {
         if(value=="about:blank"||IsOfficial(value))return null;
+        if(title!=null&&System.Text.RegularExpressions.Regex.IsMatch(title,"医药|药房|药店|眼镜|美瞳|护理液|护肤|美妆|鲜花|日百|百货|数码|宠物"))return "当前是非餐饮商家，已停止选餐和加购。请返回外卖首页重选；尚未确认新订单。";
         return "当前官方页面不支持自动点餐，任务已停止。请回到美团外卖首页选择餐饮商家；尚未确认新订单。";
     }
     internal static void StopTaskForPageFailure(LocalStore local,string reason)
@@ -192,7 +193,7 @@ internal sealed class DesktopHost : Form
                 if(!args.IsSuccess){documentReady=false;string failure=args.WebErrorStatus==CoreWebView2WebErrorStatus.OperationCanceled?"当前网页加载已取消，请点击返回美团首页后重试。尚未确认新订单。":"网页加载失败："+args.WebErrorStatus;StopTaskForPageFailure(store,failure);SendPageState(false,failure,false);return;}
                 lastHttpError=null;
                 bool supported=IsOfficial(official.Source.AbsoluteUri);documentReady=supported;
-                string unsupported=UnsupportedPage(official.Source.AbsoluteUri);
+                string unsupported=UnsupportedPage(official.Source.AbsoluteUri,official.CoreWebView2.DocumentTitle);
                 if(unsupported!=null)StopTaskForPageFailure(store,unsupported);
                 SendPageState(supported,unsupported,true);if(supported){await Inject();await official.CoreWebView2.ExecuteScriptAsync("globalThis.ShenqiReading?.setEnabled("+(reading.Checked?"true":"false")+")");}
             };
@@ -261,7 +262,7 @@ internal sealed class DesktopHost : Form
             case "storage_set":store.Change((Dictionary<string,object>)args["change"]);return new {ok=true};
             case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);return new {ok=true};
             case "panel_ready":panelReady.TrySetResult(true);return new {ok=true};
-            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.6.1",remoteEnabled=remote.Enabled};
+            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.6.2",remoteEnabled=remote.Enabled};
             case "remote_enable":
                 if(!(args["enabled"] is bool))throw new IOException("远程开关格式无效。");remote.Enable((bool)args["enabled"]);await remote.Poll(RemoteInspect,RemoteExecute);return new {ok=true};
             case "remote_reset":await remote.Reset(RemoteInspect);return new {ok=true};
@@ -285,7 +286,7 @@ internal sealed class DesktopHost : Form
                 return new {ok=true};
             case "notify":return await Notify(args);
             case "diagnostics":
-                return new {message="程序：0.6.1\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n绘制模式：软件兼容\n显示恢复次数："+renderRecoveries+"\n桌面控制台错误："+errors.Count};
+                return new {message="程序：0.6.2\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n绘制模式：软件兼容\n显示恢复次数："+renderRecoveries+"\n桌面控制台错误："+errors.Count};
             default:throw new IOException("不支持此操作。");
         }
     }
@@ -433,7 +434,7 @@ internal sealed class DesktopHost : Form
     string Fixture(string path)
     {
         string head="<!doctype html><meta charset='utf-8'><style>html{font-size:120px}h1{font-size:.44rem}body{font:18px sans-serif;padding:30px;color:#352a22}button,.clickArea_mock{min-width:48px;min-height:40px;display:inline-block;margin:6px}.poilist-item{padding:20px;border:1px solid #ccc}.banner{padding:16px;background:#f4dfb9}dd{padding:20px}</style><div class='banner'>本地模拟 · 不连接真实美团 · 不会产生真实订单</div>";
-        if(path.EndsWith("/home"))return head+"<h1>测试附近商家</h1><div class='poilist-item' onclick=\"location.href='https://cactivityapi-sc.waimai.meituan.com/h5/sub-trade/restaurant/restaurant'\"><b class='poilist-item-info1name'>111医药馆（测试店）</b><p>起送￥20 配送￥0</p></div><div class='poilist-item' onclick=\"location.href='/waimai/mindex/menu?poi_id_str=fixture'\"><b class='poilist-item-info1name'>测试素炒河粉餐厅</b><p>起送￥10 配送￥2</p></div>";
+        if(path.EndsWith("/home"))return head+"<h1>测试附近商家</h1><div class='poilist-item' onclick=\"location.href='https://cactivityapi-sc.waimai.meituan.com/h5/sub-trade/restaurant/restaurant'\"><b class='poilist-item-info1name'>EyeSoul隐形眼镜（测试店）</b><p>起送￥10 配送￥0</p></div><div class='poilist-item' onclick=\"location.href='https://cactivityapi-sc.waimai.meituan.com/h5/sub-trade/restaurant/restaurant'\"><b class='poilist-item-info1name'>111医药馆（测试店）</b><p>起送￥20 配送￥0</p></div><div class='poilist-item' onclick=\"location.href='/waimai/mindex/menu?poi_id_str=fixture'\"><b class='poilist-item-info1name'>测试素炒河粉餐厅</b><p>起送￥10 配送￥2</p></div>";
         if(path.EndsWith("/menu"))return head+"<h1>测试素炒河粉餐厅</h1><dl><dd data-tag='spu'><div class='name_mock'>测试素炒河粉</div><div data-tag='price'>￥16.00</div><div class='sqt-menu-add-buttons'><button aria-label='加入购物车'><span class='clickArea_mock' onclick=\"document.getElementById('qty').textContent='1';document.getElementById('cart').textContent='1';document.getElementById('cart').setAttribute('aria-label','购物车，已选商品')\"></span></button><span id='qty'></span></div></dd></dl><button id='cart' aria-label='购物车，没有商品'></button><button onclick=\"location.href='/waimai/mindex/preview'\">去结算</button>";
         if(path.EndsWith("/preview"))return head+"<h1>测试订单预览</h1><div class='spuInfoList_mock'><span class='spuInfoSpan_mock'>测试素炒河粉</span><span class='spuAmount_mock'>x1</span></div><div class='promotion_mock' onclick=\"document.getElementById('coupons').hidden=false\"><span>美团红包</span><span class='promotionSelect_mock'>-￥3.00</span></div><div class='promotion_mock'><span>商家代金券</span><span class='promotionSelect_mock'>无可用</span></div><div id='coupons' hidden><div>可使用红包</div><div class='cell-wrapper'><span class='price-amount-container'>￥3.00</span><div class='coupon-wrapper'>模拟红包</div></div><button onclick=\"document.getElementById('coupons').hidden=true\">确认</button></div><div><span class='actual_mock'>￥15.00</span><button id='sqt-openh5-preview-submit-btn' onclick=\"localStorage.fixtureSubmits=String(Number(localStorage.fixtureSubmits||0)+1);location.href='/waimai/mindex/order-detail?orderId=TEST202610200001'\">提交订单</button></div>";
         return head+"<h1>待支付</h1><p>订单号：TEST202610200001</p><p>待支付金额：￥15.00</p><button>由本人付款</button>";

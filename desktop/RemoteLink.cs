@@ -21,7 +21,7 @@ internal sealed class RemoteLink
     Dictionary<string,object> Read(string name){string path=Path.Combine(root,name);if(new FileInfo(path).Length>65536)throw new IOException("远程请求过大。");return Bootstrap.Json.Deserialize<Dictionary<string,object>>(File.ReadAllText(path,Encoding.UTF8));}
     void Publish(Dictionary<string,object> value)
     {
-        Directory.CreateDirectory(root);value["enabled"]=Enabled;value["updatedAt"]=Now();value["version"]="0.6.1";
+        Directory.CreateDirectory(root);value["enabled"]=Enabled;value["updatedAt"]=Now();value["version"]="0.6.2";
         value["requestId"]=requestId;value["requestState"]=requestState;value["requestError"]=requestError;
         string target=Path.Combine(root,"status.json"),temp=Path.Combine(root,"status-"+Guid.NewGuid().ToString("N")+".tmp");
         File.WriteAllText(temp,Bootstrap.Json.Serialize(value),new UTF8Encoding(false));

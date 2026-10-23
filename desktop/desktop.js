@@ -63,6 +63,8 @@
     $('startMeal').textContent=actionBusy?'正在准备…':path()==='/waimai/mindex/menu'?'在这家店选餐':parsed&&(parsed.category||parsed.keywords?.length)?'按需求帮我选餐':'帮我随机选餐';
     $('home').disabled=running||!!state.submissionAttempt||actionBusy||stopping;
     $('reload').disabled=running||actionBusy||stopping;
+    $('recoverHome').hidden=!page.error||running||!!state.submissionAttempt;
+    $('recoverHome').disabled=actionBusy||stopping;
     $('stop').hidden=!running&&!(state.submissionAttempt&&!currentOrder)&&!state.schedule?.enabled;
     $('stop').disabled=stopping;$('stop').textContent=stopping?'正在暂停…':'暂停点餐与后续定时';
     $('connection').textContent=page.error?'美团页面暂时无法打开':page.loginNeeded?'请先登录美团':page.ready?'美团内容已加载':'正在连接美团';
@@ -134,6 +136,7 @@
   $('mealConsent').onchange=render;$('specConsent').onchange=render;$('reviewed').onchange=render;
   for(const input of document.querySelectorAll('#schedule input:not(#scheduleConsent):not(#enabled)'))input.addEventListener('input',()=>{$('scheduleConsent').checked=false;});
   $('home').onclick=()=>action(()=>rpc('navigate',{url:'https://h5.waimai.meituan.com/waimai/mindex/home'}));
+  $('recoverHome').onclick=()=>action(()=>rpc('navigate',{url:'https://h5.waimai.meituan.com/waimai/mindex/home'}));
   $('reload').onclick=()=>action(()=>rpc('reload'));
   $('startMeal').onclick=()=>action(async()=>{
     if(!$('mealConsent').checked||!page.ready||page.loginNeeded||!storageReady)throw Error('请先核对右侧账号与地址，并勾选本次授权');

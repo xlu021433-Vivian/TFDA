@@ -216,6 +216,11 @@
         quantity:Number(text(el.querySelector('[class^="spuAmount_"]')).match(/^x(\d+)$/)?.[1])
       }));
     }
+    function supportedShopLink(element){
+      const link=element.matches('a[href]')?element:element.querySelector('a[href]');
+      if(!link)return true; // Official cards often navigate through their click handler.
+      try{const url=new URL(link.getAttribute('href'),win.location.href);return policy.supported(url.href)&&url.pathname==='/waimai/mindex/menu'&&!!url.searchParams.get('poi_id_str');}catch{return false;}
+    }
     function shops(budget,request,tried=[]){
       const category=policy.intent(request||'').category;
       return [...doc.querySelectorAll('.poilist-item')].map(element=>{
@@ -223,7 +228,7 @@
         const minimum=policy.price(body.match(/起送\s*[¥￥]\s*\d+(?:\.\d{1,2})?/)?.[0]||'');
         const delivery=policy.price(body.match(/配送\s*约?\s*[¥￥]\s*\d+(?:\.\d{1,2})?/)?.[0]||'');
         return {name,minimum,delivery,element,body};
-      }).filter(item=>item.name&&!tried.includes(item.name)&&!policy.inspectName(item.name)&&policy.foodShop(item.name)&&!/休息中|暂停营业|超出配送/.test(item.body)&&item.minimum!==null&&item.delivery!==null&&item.minimum+item.delivery<=budget&&(category?true:!/奶茶|咖啡|茶姬|奶白|喜茶|奈雪|甜品|蛋糕|一点点|1点点/.test(item.name)))
+      }).filter(item=>supportedShopLink(item.element)&&item.name&&!tried.includes(item.name)&&!policy.inspectName(item.name)&&policy.foodShop(item.name,true)&&!/休息中|暂停营业|超出配送/.test(item.body)&&item.minimum!==null&&item.delivery!==null&&item.minimum+item.delivery<=budget&&(category?true:!/奶茶|咖啡|茶姬|奶白|喜茶|奈雪|甜品|蛋糕|一点点|1点点/.test(item.name)))
         .filter(item=>!['奶茶','果茶','咖啡'].includes(category)||(category==='咖啡'?/咖啡|瑞幸|库迪|星巴克|Manner|Costa/i:/茶|奶|蜜雪|古茗|沪上|一点点|1点点|CoCo|益禾|甜啦/i).test(item.name));
     }
     function openShop(chosen,budget,request,tried=[]) {
