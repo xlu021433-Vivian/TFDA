@@ -72,3 +72,20 @@ test('manual specification attention notifies once and keeps the task available 
   assert.equal(f.notifications.length,1);assert.equal(f.data.activeRun.stage,'menu');assert.equal(f.data.submissionAttempt,undefined);
   await f.runtime.message({type:'schedule_check',id},f.page);
 });
+
+
+test('cashier receipts complete only the matching reserved amount and retain duplicate protection',async()=>{
+  const f=setup();await f.runtime.message(request,f.panel);const runId=f.data.activeRun.id;
+  await f.runtime.message({type:'reserve',runId,budget:2500,total:2390},f.page);
+  const result={orderId:'4402356522089986176',total:2390,status:'unpaid',url:'https://h5.waimai.meituan.com/waimai/mindex/order-detail?mtOrderViewId=4402356522089986176'};
+  await assert.rejects(f.runtime.message({type:'cashier_result',result:{...result,total:2300}},f.panel));
+  await f.runtime.message({type:'cashier_result',result},f.panel);assert.equal(f.data.activeRun.stage,'done');assert.equal(f.data.submissionAttempt,true);assert.equal(f.notifications.length,1);
+  await f.runtime.message({type:'cashier_result',result},f.panel);assert.equal(f.notifications.length,1);await assert.rejects(f.runtime.message(request,f.panel));
+});
+test('manually submitted cashier receipts are labelled unverified and block new meals until review',async()=>{
+  const f=setup(),result={orderId:'4402356522089986176',total:2390,status:'unpaid',url:'https://h5.waimai.meituan.com/waimai/mindex/order-detail?mtOrderViewId=4402356522089986176'};
+  await f.runtime.message({type:'cashier_result',result},f.panel);assert.equal(f.data.observedOrder.couponVerified,false);assert.equal(f.data.lastOrder,undefined);
+  await assert.rejects(f.runtime.message(request,f.panel));await assert.rejects(f.runtime.message({type:'reserve',budget:2500,total:2390},f.page));
+  await assert.rejects(f.runtime.message({type:'cashier_result',result},f.page));
+  await f.runtime.message({type:'clear',reviewed:true},f.panel);assert.equal(f.data.observedOrder,undefined);await f.runtime.message({type:'cashier_result',result},f.panel);assert.equal(f.data.observedOrder,undefined);await f.runtime.message(request,f.panel);assert.equal(f.tabs.length,1);
+});

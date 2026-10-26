@@ -292,12 +292,13 @@
       const started=Date.now();
       while(Date.now()-started<10000){
         if(stopped)throw Error('已停止定时点餐');
-        if(/\/mindex\/home\/?$/.test(location.pathname)?document.querySelector('.poilist-item'):adapter.cards().length)break;
+        if(/\/mindex\/home\/?$/.test(location.pathname)?adapter.shops(task.config.budget,task.config.request,task.tried).length:adapter.cards().length)break;
         await new Promise(resolve=>setTimeout(resolve,200));
       }
       if(/\/mindex\/home\/?$/.test(location.pathname)){
         const candidates=adapter.shops(task.config.budget,task.config.request,task.tried);
-        if(!candidates.length||task.tried.length>=5)throw Error('附近已加载商家没有符合预算的可选餐饮店，今日不下单');
+        if(task.tried.length>=5)throw Error('已核对5家餐厅仍没有符合本次需求的餐品，已停止；没有创建新订单');
+        if(!candidates.length){const report=adapter.shopDiagnostics(task.config.budget,task.config.request);throw Error(!report.length?'尚未读到商家列表，请在官方页确认配送位置后重试；没有创建新订单':report.some(item=>P.foodShop(item.name,true)&&(item.minimum===null||item.delivery===null))?'餐厅的起送价或配送费尚未读取完整，请刷新商家列表；没有创建新订单':'当前已加载餐厅经营业状态、忌口、预算及需求筛选后没有可选项；没有创建新订单');}
         const chosen=candidates[Math.floor(Math.random()*candidates.length)];
         await message({type:'schedule_shop',id:task.id,name:chosen.name,minimum:chosen.minimum});
         if(stopped)throw Error('已暂停选店');

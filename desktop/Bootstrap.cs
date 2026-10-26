@@ -11,15 +11,15 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("神器 · 独立桌面点餐助手")]
-[assembly: AssemblyVersion("0.6.2.0")]
-[assembly: AssemblyFileVersion("0.6.2.0")]
+[assembly: AssemblyVersion("0.6.4.0")]
+[assembly: AssemblyFileVersion("0.6.4.0")]
 
 internal static class Bootstrap
 {
     internal static string Root, Assets;
     internal static bool Test, Demo;
     internal static bool EnablePhone;
-    internal static string Report;
+    internal static string Report, ShopReport;
     internal static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = 4 * 1024 * 1024 };
     [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool SetDllDirectory(string path);
     internal static byte[] Resource(string name)
@@ -40,13 +40,14 @@ internal static class Bootstrap
             EnablePhone=Array.IndexOf(args,"--enable-phone-control")>=0;
             Root=Path.GetFullPath(Argument(args,"--data-dir")??Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"ShenqiDesktop"));
             Report=Argument(args,"--report");
+            ShopReport=Argument(args,"--shop-report");
             if(Test&&(Argument(args,"--data-dir")==null||(Directory.Exists(Root)&&Directory.GetFileSystemEntries(Root).Length!=0)))
                 throw new IOException("测试必须使用新的空数据目录，不能使用本人已登录的目录。");
             bool created;
             using(var mutex=new Mutex(true,"Local\\ShenqiDesktop-"+Hash(Encoding.UTF8.GetBytes(Root.ToLowerInvariant())).Substring(0,20),out created))
             {
                 if(!created) { MessageBox.Show("神器已经在运行。请切换到已打开的神器窗口。","神器");return 0; }
-                Assets=Path.Combine(Root,"Runtime","0.6.2");Directory.CreateDirectory(Assets);
+                Assets=Path.Combine(Root,"Runtime","0.6.4");Directory.CreateDirectory(Assets);
                 var files=Json.Deserialize<List<Dictionary<string,string>>>(Encoding.UTF8.GetString(Resource("runtime-files.json")));
                 foreach(var file in files)
                 {

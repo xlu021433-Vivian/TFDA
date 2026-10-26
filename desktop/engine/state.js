@@ -6,7 +6,7 @@ if(typeof importScripts==='function')importScripts('guard-data.js','policy.js','
   function createRuntime(api,{now=Date.now,random=Math.random,fetcher=globalThis.fetch}={}){
     let queue=Promise.resolve();
     const serialize=fn=>{const result=queue.then(fn,fn);queue=result.catch(()=>{});return result;};
-    const read=()=>api.storage.local.get(['preferences','submissionAttempt','attemptMeta','schedule','runs','activeRun','lastOrder','notificationToken','notificationStatus']);
+    const read=()=>api.storage.local.get(['preferences','submissionAttempt','attemptMeta','schedule','runs','activeRun','lastOrder','notificationToken','notificationStatus','observedOrder','reviewedCashierIds']);
     const extensionSender=sender=>sender.id===api.runtime.id&&sender.url?.startsWith(api.runtime.getURL('options.html'));
     const pageSender=sender=>sender.id===api.runtime.id&&sender.tab&&P.supported(sender.tab.url||'');
     const runFor=(state,sender)=>state.activeRun?.tabId===sender.tab?.id?state.activeRun:null;
@@ -17,7 +17,7 @@ if(typeof importScripts==='function')importScripts('guard-data.js','policy.js','
     }
     function publicState(state,sender){
       const run=runFor(state,sender);
-      return {ok:true,preferences:state.preferences||{},attempt:!!state.submissionAttempt,
+      return {ok:true,preferences:state.preferences||{},attempt:!!(state.submissionAttempt||state.observedOrder),
         run:run&&!['done','failed','stopped'].includes(run.stage)?run:null,
         schedule:state.schedule||structuredClone(S.defaults),lastOrder:state.lastOrder||null,
         notificationConfigured:!!state.notificationToken,notificationStatus:state.notificationStatus||null};
@@ -88,15 +88,31 @@ if(typeof importScripts==='function')importScripts('guard-data.js','policy.js','
       }
       if(message.type==='schedule_failed'){validRun(state,sender,message.id);return fail(state,String(message.reason||'页面未提供可用点餐流程').slice(0,160));}
       if(message.type==='reserve'){
-        if(state.submissionAttempt)throw Error('已有提交尝试，请先到官方订单列表核对，避免重复下单');
+        if(state.submissionAttempt||state.observedOrder)throw Error('已有提交尝试，请先到官方订单列表核对，避免重复下单');
         if(message.runId)validRun(state,sender,message.runId);
         const budget=message.budget,total=message.total;
         if(!Number.isSafeInteger(budget)||!Number.isSafeInteger(total)||total<0||total>budget)throw Error('无法核对提交金额');
         await api.storage.local.set({submissionAttempt:true,attemptMeta:{tabId:sender.tab.id,runId:message.runId||null,time:now(),date:S.clock(now()).date,budget,total}});return {ok:true};
       }
-      if(message.type==='order_result'){
-        const meta=state.attemptMeta,r=message.result;
-        if(!state.submissionAttempt||!meta||meta.tabId!==sender.tab.id||now()-meta.time>15*60*1000)throw Error('没有可关联的本次提交');
+      if(message.type==='cashier_result'&&!isOptions)throw Error('收银台结果仅接受本机只读观察');
+      if(message.type==='order_result'||message.type==='cashier_result'&&isOptions){
+        const meta=state.attemptMeta,r=message.result,cashier=message.type==='cashier_result';
+        if(cashier){
+          let link;try{link=new URL(r?.url);}catch{}
+          if(!r||r.status!=='unpaid'||!/^\d{8,40}$/.test(r.orderId)||!Number.isSafeInteger(r.total)||r.total<=0||!P.supported(r.url)||link?.pathname!=='/waimai/mindex/order-detail'||link.searchParams.get('mtOrderViewId')!==r.orderId||[...link.searchParams.keys()].some(key=>key!=='mtOrderViewId'))throw Error('未确认收银台订单号、金额和安全链接');
+          if((state.reviewedCashierIds||[]).includes(r.orderId))return {ok:true,reviewed:true};
+          if(!state.submissionAttempt){
+            if(state.observedOrder?.orderId===r.orderId)return {ok:true,duplicate:true};
+            if(state.observedOrder)throw Error('上一笔已观察到的订单尚未核对');
+            const observedOrder={orderId:r.orderId,total:r.total,url:r.url,date:S.clock(now()).date,time:now(),status:'unpaid',source:'observed',couponVerified:false};
+            const change={observedOrder};
+            if(state.activeRun&&!['done','failed','stopped'].includes(state.activeRun.stage))change.activeRun={...state.activeRun,stage:'stopped',reason:'检测到非助手提交的待支付订单，优惠尚未核实。请核对官方订单，不会重新下单。'};
+            await api.storage.local.set(change);
+            await notify('神器 · 发现待支付订单',`订单号：${r.orderId}\n金额：${P.money(r.total)}\n这笔订单的用券情况尚未核实，请在官方页核对。`);
+            return {ok:true,observed:true};
+          }
+        }
+        if(!state.submissionAttempt||!meta||(!cashier&&meta.tabId!==sender.tab?.id)||now()-meta.time>15*60*1000)throw Error('没有可关联的本次提交');
         if(!r||r.status!=='unpaid'||!/^[A-Za-z0-9-]{8,40}$/.test(r.orderId)||r.total!==meta.total||!P.supported(r.url)||!/\/(order-detail|orderdetail|cashier|pay)(\/|$)/.test(new URL(r.url).pathname))throw Error('未确认真实订单号、待支付状态及金额');
         if(state.lastOrder?.orderId===r.orderId)return {ok:true,duplicate:true};
         const order={orderId:r.orderId,total:r.total,url:r.url,date:meta.date,time:now(),status:'unpaid'};
@@ -108,7 +124,9 @@ if(typeof importScripts==='function')importScripts('guard-data.js','policy.js','
       }
       if(message.type==='clear'&&message.reviewed===true){
         if(state.activeRun&&!['done','failed','stopped'].includes(state.activeRun.stage))throw Error('当前任务仍在进行，请先暂停，再核对官方订单后解除防重记录');
-        await api.storage.local.remove(['submissionAttempt','attemptMeta']);return {ok:true};
+        const reviewedId=state.observedOrder?.orderId||(state.submissionAttempt?state.lastOrder?.orderId:null);
+        if(reviewedId)await api.storage.local.set({reviewedCashierIds:[...new Set([...(state.reviewedCashierIds||[]),reviewedId])].slice(-32)});
+        await api.storage.local.remove(['submissionAttempt','attemptMeta','observedOrder']);return {ok:true};
       }
       throw Error('未知操作');
     }
@@ -117,7 +135,7 @@ if(typeof importScripts==='function')importScripts('guard-data.js','policy.js','
       if(state.activeRun&&!['done','failed','stopped'].includes(state.activeRun.stage)){
         if(now()>state.activeRun.deadline)await fail(state,'定时点餐超时或页面未确认订单号，不会重试提交');return;
       }
-      if(!config)return;const due=S.due(config,state.runs||{},now());if(!due)return;
+      if(!config||state.observedOrder)return;const due=S.due(config,state.runs||{},now());if(!due)return;
       const runs={...state.runs,[due.date]:{status:due.missed?'missed':'starting',time:now()}};
       const recent=Object.fromEntries(Object.entries(runs).sort().slice(-40));await api.storage.local.set({runs:recent});
       if(due.missed){await notify('神器 · 今日定时点餐已跳过','浏览器未在定时窗口内运行，已跳过今日点餐，不会在稍后补下单。');return;}

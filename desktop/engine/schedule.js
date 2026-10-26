@@ -47,7 +47,7 @@
     const total=P.cents(amount[1]);if(total===null)return null;
     // Payment links must not carry a location, token or arbitrary redirect in a phone notification.
     const safe=new URL(link.origin+link.pathname);
-    for(const key of ['orderId','order_id','wm_order_id','mtOrderId','order_id_str'])if(link.searchParams.has(key))safe.searchParams.set(key,link.searchParams.get(key));
+    for(const key of ['orderId','order_id','wm_order_id','mtOrderId','order_id_str','mtOrderViewId'])if(link.searchParams.has(key))safe.searchParams.set(key,link.searchParams.get(key));
     return {orderId:ids[0],total,url:safe.href,status:'unpaid'};
   }
   const api={defaults,clock,merchant,validate,due,unpaid};

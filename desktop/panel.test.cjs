@@ -79,3 +79,9 @@ test('unsupported-page recovery only returns home and never starts or submits a 
   f.$('recoverHome').click();await pause();assert.ok(f.nativeCalls.some(x=>x.action==='navigate'&&x.args.url==='https://h5.waimai.meituan.com/waimai/mindex/home'));assert.equal(f.messages.length,0);
   f.data.submissionAttempt=true;await f.w.Desktop.inspect();assert.equal(f.$('recoverHome').hidden,true);
 });
+
+
+test('unverified observed orders remain visible and block starting another meal',async t=>{
+  const f=await panel(t,{initial:{observedOrder:{orderId:'4402356522089986176',total:2390,url:'https://h5.waimai.meituan.com/waimai/mindex/order-detail?mtOrderViewId=4402356522089986176',source:'observed'}}});
+  assert.equal(f.$('order').hidden,false);assert.match(f.$('orderHint').textContent,/未核实/);assert.equal(f.$('mealAction').hidden,true);assert.equal(f.w.Desktop.remoteStatus().locked,true);assert.equal(f.w.Desktop.remoteStatus().order.couponVerified,false);
+});

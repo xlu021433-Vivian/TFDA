@@ -22,7 +22,7 @@ def worker():
     marker="      if(message.type==='configure_schedule'&&isOptions){"
     assert source.count(marker)==1
     branch="""      if(message.type==='start_now'&&isOptions){
-        if(state.submissionAttempt)throw Error('上次提交尚未核对，请先查看官方订单');
+        if(state.submissionAttempt||state.observedOrder)throw Error('上次提交尚未核对，请先查看官方订单');
         if(state.activeRun&&!['done','failed','stopped'].includes(state.activeRun.stage))throw Error('当前点餐尚未结束，请先暂停或等待');
         const config=S.validate(message.schedule);if(!config.authorized)throw Error('请先确认本次账号、地址和点餐授权');
         let menu=null;
@@ -46,7 +46,7 @@ def build(package,output):
     original=b'  document.documentElement.appendChild(host);'
     assert files['content.js'].count(original)==1
     files['content.js']=files['content.js'].replace(original,b"  host.style.setProperty('display','none','important');\n  host.setAttribute('aria-hidden','true');\n"+original)
-    for name in ('options.html','desktop.css','desktop.js','page-bridge.js','official-theme.js'):
+    for name in ('options.html','desktop.css','desktop.js','page-bridge.js','official-theme.js','cashier-reader.js'):
         files[name]=(ROOT/'desktop'/name).read_bytes()
     files['worker.js']=worker()
     with zipfile.ZipFile(package) as sdk:
@@ -68,4 +68,4 @@ def build(package,output):
     print(json.dumps({'exe':str(executable),'bytes':executable.stat().st_size,'sha256':digest,'sdk':SDK},ensure_ascii=False))
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/'dist/desktop-0.6.2');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/'dist/desktop-0.6.4');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())

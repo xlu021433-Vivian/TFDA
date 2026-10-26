@@ -26,7 +26,7 @@ html[data-shenqi-reading="menu"] dd[data-tag="spu"] img { border-radius:10px; ob
     if (!style.isConnected) (document.head || document.documentElement)?.append(style);
     const route = location.pathname.match(/^\/waimai\/mindex\/(home|menu)\/?$/)?.[1];
     // Dialogs and every transactional/authentication route keep the official layout.
-    const dialog = document.querySelector('button[aria-label="关闭商品规格选择弹窗"], [role="dialog"], dialog[open]');
+    const dialog = [...document.querySelectorAll('button[aria-label="关闭商品规格选择弹窗"], [role="dialog"], dialog[open]')].find(el=>el.getClientRects().length>0&&getComputedStyle(el).visibility!=='hidden');
     const value = enabled && route && !dialog ? route : null;
     if (value && document.documentElement.getAttribute('data-shenqi-reading') !== value) document.documentElement.setAttribute('data-shenqi-reading', value);
     if (!value && document.documentElement.hasAttribute('data-shenqi-reading')) document.documentElement.removeAttribute('data-shenqi-reading');
@@ -38,7 +38,7 @@ html[data-shenqi-reading="menu"] dd[data-tag="spu"] img { border-radius:10px; ob
   window.addEventListener('hashchange', update);
   // SPA routes can change without a DOM mutation. No history API is replaced.
   let timer;
-  function resume() { disposed = false; observer.observe(document, {childList:true,subtree:true}); clearInterval(timer); timer = setInterval(update, 1000); update(); }
+  function resume() { disposed = false; observer.observe(document, {childList:true,subtree:true,attributes:true,attributeFilter:['hidden','open','aria-hidden','style','class']}); clearInterval(timer); timer = setInterval(update, 1000); update(); }
   window.addEventListener('pagehide', () => { disposed = true; observer.disconnect(); clearInterval(timer); });
   window.addEventListener('pageshow', resume);
   resume();

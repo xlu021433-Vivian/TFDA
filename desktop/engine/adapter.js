@@ -35,7 +35,12 @@
       if (!button) return {count: null, button: null};
       const label = button.getAttribute('aria-label') || '';
       const value = text(button);
-      return {count: label.includes('没有商品') ? 0 : /^\d+$/.test(value) ? Number(value) : null, button};
+      const labelled=label.match(/已选\s*(\d+)\s*[件份]/);
+      const badgeNodes=[...new Set([button,button.parentElement].filter(Boolean).flatMap(el=>[...el.querySelectorAll('[class^="badge_"], [class*=" badge_"], [data-tag="cart-count"]')]))].filter(visible);
+      const badges=badgeNodes.map(el=>text(el)).filter(v=>/^\d+$/.test(v));
+      const badge=badges.length===1?Number(badges[0]):null;
+      const count=label.includes('没有商品')?0:/^\d+$/.test(value)?Number(value):labelled?Number(labelled[1]):badge;
+      return {count:Number.isSafeInteger(count)&&count>=0&&count<=100?count:null,button};
     }
     function leaf(label, parent = doc) {
       return [...parent.querySelectorAll('button, a, span, div, webc-text, webc-view')].filter(el => visible(el) && text(el) === label && ![...el.children].some(child => text(child) === label)).at(-1) || null;
@@ -221,20 +226,73 @@
       if(!link)return true; // Official cards often navigate through their click handler.
       try{const url=new URL(link.getAttribute('href'),win.location.href);return policy.supported(url.href)&&url.pathname==='/waimai/mindex/menu'&&!!url.searchParams.get('poi_id_str');}catch{return false;}
     }
+    function shopFees(element){
+      // Read the smallest labelled price fields, never concatenated whole-card text:
+      // delivery ¥0 followed by 15 minutes otherwise becomes a fictitious ¥015.
+      const minima=[],deliveries=[];
+      for(const row of element.querySelectorAll('.poi-info-txt,p,span,div')){
+        const value=text(row).replace(/\s+/g,' ').trim();
+        let match=value.match(/^起送(?:价)?\s*[¥￥]\s*(\d+(?:\.\d{1,2})?)(?:元)?$/);
+        if(match)minima.push(policy.cents(match[1]));
+        match=value.match(/^配送(?:费)?\s*约?\s*[¥￥]\s*(\d+(?:\.\d{1,2})?)(?:元)?$/);
+        if(match)deliveries.push(policy.cents(match[1]));
+        if(/^(?:免配送费|配送费全免)$/.test(value))deliveries.push(0);
+        match=value.match(/^起送(?:价)?\s*[¥￥]\s*(\d+(?:\.\d{1,2})?)\s*配送(?:费)?\s*约?\s*[¥￥]\s*(\d+(?:\.\d{1,2})?)$/);
+        if(match){minima.push(policy.cents(match[1]));deliveries.push(policy.cents(match[2]));}
+      }
+      const unique=values=>{const found=[...new Set(values.filter(Number.isSafeInteger))];return found.length===1?found[0]:null;};
+      return {minimum:unique(minima),delivery:unique(deliveries)};
+    }
     function shops(budget,request,tried=[]){
-      const category=policy.intent(request||'').category;
+      const category=policy.intent(request||'').category,isDrink=['奶茶','果茶','咖啡'].includes(category);
       return [...doc.querySelectorAll('.poilist-item')].map(element=>{
         const name=text(element.querySelector('.poilist-item-info1name')),body=text(element);
-        const minimum=policy.price(body.match(/起送\s*[¥￥]\s*\d+(?:\.\d{1,2})?/)?.[0]||'');
-        const delivery=policy.price(body.match(/配送\s*约?\s*[¥￥]\s*\d+(?:\.\d{1,2})?/)?.[0]||'');
-        return {name,minimum,delivery,element,body};
-      }).filter(item=>supportedShopLink(item.element)&&item.name&&!tried.includes(item.name)&&!policy.inspectName(item.name)&&policy.foodShop(item.name,true)&&!/休息中|暂停营业|超出配送/.test(item.body)&&item.minimum!==null&&item.delivery!==null&&item.minimum+item.delivery<=budget&&(category?true:!/奶茶|咖啡|茶姬|奶白|喜茶|奈雪|甜品|蛋糕|一点点|1点点/.test(item.name)))
-        .filter(item=>!['奶茶','果茶','咖啡'].includes(category)||(category==='咖啡'?/咖啡|瑞幸|库迪|星巴克|Manner|Costa/i:/茶|奶|蜜雪|古茗|沪上|一点点|1点点|CoCo|益禾|甜啦/i).test(item.name));
+        return {name,...shopFees(element),element,body};
+      }).filter(item=>supportedShopLink(item.element)&&item.name&&!tried.includes(item.name)&&!policy.inspectName(item.name)&&policy.foodShop(item.name,true)&&!/休息中|暂停营业|超出配送|接受预订|预订中/.test(item.body)&&item.minimum!==null&&item.delivery!==null&&item.minimum+item.delivery<=budget&&(isDrink||!/奶茶|咖啡|果茶|茶百道|茶话弄|茶姬|奶白|喜茶|奈雪|蜜雪|古茗|沪上阿姨|甜品|蛋糕|一点点|1点点|益禾堂|甜啦啦|CoCo/i.test(item.name)))
+        .filter(item=>!isDrink||(category==='咖啡'?/咖啡|瑞幸|库迪|星巴克|Manner|Costa/i:/茶|奶|蜜雪|古茗|沪上|一点点|1点点|CoCo|益禾|甜啦/i).test(item.name));
+    }
+    function shopDiagnostics(budget=2500,request='') {
+      const accepted=new Set(shops(budget,request).map(item=>item.element));
+      return [...doc.querySelectorAll('.poilist-item')].slice(0,30).map(element=>({
+        name:text(element.querySelector('.poilist-item-info1name')).slice(0,100),
+        ...shopFees(element),
+        accepted:accepted.has(element),
+        body:text(element).slice(0,1200),
+        leaves:[...element.querySelectorAll('*')].filter(el=>!el.children.length&&text(el)).slice(0,50).map(el=>({tag:el.tagName,classes:el.className,text:text(el).slice(0,180)})),
+        links:[...element.querySelectorAll('a[href]')].slice(0,3).map(el=>{try{const u=new URL(el.getAttribute('href'),win.location.href);return u.origin+u.pathname;}catch{return 'invalid';}})
+      }));
     }
     function openShop(chosen,budget,request,tried=[]) {
       const current=shops(budget,request,tried).find(item=>item.element===chosen.element&&item.name===chosen.name);
       if(!current||!current.element.isConnected||!visible(current.element))throw Error('商家列表已变化，停止跳转，请重新核对');
       current.element.click();
+    }
+    function optionLabel(el){return text(el).replace(/[¥￥]\s*\d+(?:\.\d{1,2})?/g,'').replace(/\s+/g,'').trim();}
+    function optionNodes(group){
+      const nodes=[...group.querySelectorAll('[class^="tag_"], [class*=" tag_"], [role="radio"]')].filter(visible);
+      return nodes.filter(el=>!nodes.some(other=>other!==el&&other.contains(el)));
+    }
+    function selectedOptions(group){
+      const nodes=optionNodes(group);
+      return nodes.filter(el=>/\bselected_/.test(el.className)||el.getAttribute('aria-selected')==='true'||el.getAttribute('aria-checked')==='true'||!!el.querySelector('[class*="selected_"], [aria-selected="true"], [aria-checked="true"]'));
+    }
+    function specSummary(dialog){
+      const labels=[...dialog.querySelectorAll('div,span,p')].filter(visible).map(el=>text(el)).filter(value=>/^已选规格\s*[:：]/.test(value)&&!/总计|加入购物车|关闭商品/.test(value)).sort((a,b)=>a.length-b.length);
+      return labels.length?labels[0].replace(/^已选规格\s*[:：]\s*/,'').split(/[、,，]/).map(x=>x.replace(/\s+/g,'')).filter(Boolean):[];
+    }
+    function verifiedSelections(dialog,groups){
+      const summary=specSummary(dialog),choices=[];
+      for(const group of groups){
+        const marked=selectedOptions(group),nodes=optionNodes(group);
+        const inSummary=nodes.filter(el=>summary.includes(optionLabel(el)));
+        // A visible official summary can resolve changed styling, but never a conflict.
+        if(marked.length>1||inSummary.length>1)return null;
+        const chosen=marked.length===1?marked[0]:inSummary.length===1?inSummary[0]:null;
+        if(!chosen||summary.length&&!summary.includes(optionLabel(chosen)))return null;
+        choices.push(chosen);
+      }
+      if(!choices.length||summary.length&&summary.length!==choices.length)return null;
+      return choices;
     }
     async function confirmDefaultSpecs(pending,budget,request={},shouldStop=()=>false){
       const checkStop=()=>{if(shouldStop())throw Error('已停止规格选择和加购');};checkStop();
@@ -243,7 +301,7 @@
       let groups=[...dialog.querySelectorAll('[data-tag="attribute"]')];
       const choices=[];
       for(const [kind,label] of Object.entries(request.options||{})){
-        const matching=groups.flatMap(group=>[...group.querySelectorAll('[class^="tag_"], [class*=" tag_"]')].filter(el=>visible(el)&&policy.optionMatches(kind,label,text(el))&&!/disabled|soldoff|unavailable/i.test(el.className)&&!/不可|不支持|售罄|售完|已下架/.test(text(el))).map(el=>({group,el})));
+        const matching=groups.flatMap(group=>optionNodes(group).filter(el=>visible(el)&&policy.optionMatches(kind,label,text(el))&&!/disabled|soldoff|unavailable/i.test(el.className)&&!/不可|不支持|售罄|售完|已下架/.test(text(el))).map(el=>({group,el})));
         if(matching.length!==1)throw Error(`未唯一找到“${label}”规格，请在官方弹窗亲自选择；不会按默认口味加购`);
         choices.push({kind,label,...matching[0]});
       }
@@ -251,17 +309,18 @@
         checkStop();
         ensure(pending.scope);
         if(!choice.el.isConnected||cart().count!==pending.cartCount)throw Error('规格列表或购物车已变化，请本人核对');
-        if(!/\bselected_/.test(choice.el.className))choice.el.click();
+        if(!selectedOptions(choice.group).includes(choice.el))choice.el.click();
       }
       if(choices.length){
         const confirmed=await waitFor(()=>{checkStop();return choices.every(choice=>{
-          return [...choice.group.querySelectorAll('[class*="selected_"]')].filter(el=>policy.optionMatches(choice.kind,choice.label,text(el))).length===1;
+          return selectedOptions(choice.group).filter(el=>policy.optionMatches(choice.kind,choice.label,optionLabel(el))).length===1;
         });},pending.scope);
         if(!confirmed)throw Error('指定规格未确认选中，请本人核对；没有点击确认加购');
       }
       groups=[...dialog.querySelectorAll('[data-tag="attribute"]')];
-      if(!groups.length||groups.some(group=>group.querySelectorAll('[class*="selected_"]').length!==1))throw Error('规格未完整选中或需要额外选择，请本人处理');
-      const selected=groups.map(group=>text(group.querySelector('[class*="selected_"]')));
+      const chosenOptions=verifiedSelections(dialog,groups);
+      if(!chosenOptions)throw Error('规格未完整选中、官方摘要不一致或需要额外选择，请本人处理');
+      const selected=chosenOptions.map(optionLabel);
       if(selected.some(name=>policy.inspectName(name)))throw Error('默认规格触发忌口规则，已停止');
       // The official price block contains both sale and struck-through original price.
       const priceBlock=dialog.querySelector('[class^="price_"], [class*=" price_"]')?.cloneNode(true);
@@ -299,7 +358,7 @@
       button.click(); // Exactly one submission attempt; payment controls are never selected.
       return {status:'attempted'};
     }
-    return {cards, cart, add, verifyManual, confirmDefaultSpecs,shops,openShop,checkout, scope, specDialog, ensure, previewTotal, couponRows, applyCoupons, previewFingerprint, previewItems, createUnpaid, isUncertain: () => uncertain};
+    return {cards, cart, add, verifyManual, confirmDefaultSpecs,shops,shopDiagnostics,openShop,checkout, scope, specDialog, ensure, previewTotal, couponRows, applyCoupons, previewFingerprint, previewItems, createUnpaid, isUncertain: () => uncertain};
   }
   const api = {create};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

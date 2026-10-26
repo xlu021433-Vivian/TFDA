@@ -22,7 +22,7 @@
     if(pending&&online&&Date.now()>pendingAt+70000&&!state.queued&&!state.unresolved&&!state.busy&&!state.locked&&state.requestId!==pending){sessionStorage.removeItem('shenqiPending');pending='';say('上一笔请求没有被确认接收，现已过期；请重新核对后发送。');}
     $('connectionTitle').textContent=!online?'桌面神器未连接':!enabled?'桌面已连接，远程未启用':state.loginNeeded?'请在电脑上登录美团':state.ready?'桌面神器已连接':'桌面需要处理';
     $('dot').className='dot '+(online&&enabled&&state.ready&&!state.loginNeeded?'good':!online?'bad':'');
-    $('connectionDetail').textContent=!online?'请在电脑打开神器0.6.2或更新版，保持联网、不休眠。':!enabled?'在电脑神器首页点一次「连接手机」，以后会记住。':state.loginNeeded?'请在桌面窗口亲自登录并确认配送地址。':!state.ready?(state.message||'请回电脑检查美团页面。'):'可以直接填写需求并选餐；电脑使用当前美团配送地址。';
+    $('connectionDetail').textContent=!online?'请在电脑打开神器0.6.4或更新版，保持联网、不休眠。':!enabled?'在电脑神器首页点一次「连接手机」，以后会记住。':state.loginNeeded?'请在桌面窗口亲自登录并确认配送地址。':!state.ready?(state.message||'请回电脑检查美团页面。'):'可以直接填写需求并选餐；电脑使用当前美团配送地址。';
     let reason=!online?'等待桌面神器连接':!enabled?'请先在桌面启用远程控制':state.loginNeeded?'请先在电脑登录美团':pending||state.queued?'等待电脑确认本次请求':state.busy?'这一餐正在准备中':state.locked?'请先核对上一笔官方订单':state.unresolved?'上一笔接收结果需在桌面核对':!state.ready?'请先在桌面准备美团页面':!parsed?'请调整需求或预算':'';
     $('start').disabled=!!reason||sending;
     $('start').textContent=sending?'正在发送…':reason||('用券选1餐 · 不超过¥'+(parsed.budget/100).toFixed(2));
@@ -36,7 +36,7 @@
     let url;try{url=new URL(order?.url);}catch{}
     const valid=order&&/^\d{8,40}$/.test(order.id)&&Number.isSafeInteger(order.amount)&&order.amount>0&&url?.protocol==='https:'&&url.hostname==='h5.waimai.meituan.com'&&!url.port;
     $('orderCard').hidden=!valid;
-    if(valid){$('orderAmount').textContent='¥ '+(order.amount/100).toFixed(2);$('orderId').textContent=order.id;$('orderLink').href=url.href;}
+    if(valid){$('orderAmount').textContent='¥ '+(order.amount/100).toFixed(2);$('orderId').textContent=order.id;$('orderLink').href=url.href;$('orderHint').textContent=order.couponVerified===false?'本笔订单的用券情况未核实，请在官方页核对。':'请在官方有效期内本人付款，实时状态以美团为准。';}
   }
   async function api(path,options={}){
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
