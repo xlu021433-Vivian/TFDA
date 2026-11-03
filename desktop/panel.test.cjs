@@ -83,5 +83,19 @@ test('unsupported-page recovery only returns home and never starts or submits a 
 
 test('unverified observed orders remain visible and block starting another meal',async t=>{
   const f=await panel(t,{initial:{observedOrder:{orderId:'4402356522089986176',total:2390,url:'https://h5.waimai.meituan.com/waimai/mindex/order-detail?mtOrderViewId=4402356522089986176',source:'observed'}}});
-  assert.equal(f.$('order').hidden,false);assert.match(f.$('orderHint').textContent,/未核实/);assert.equal(f.$('mealAction').hidden,true);assert.equal(f.w.Desktop.remoteStatus().locked,true);assert.equal(f.w.Desktop.remoteStatus().order.couponVerified,false);
+  assert.equal(f.$('order').hidden,false);assert.match(f.$('orderHint').textContent,/未核实/);assert.match(f.$('orderTitle').textContent,/发现/);assert.equal(f.$('mealAction').hidden,true);assert.equal(f.w.Desktop.remoteStatus().locked,true);assert.equal(f.w.Desktop.remoteStatus().order.couponVerified,false);
+});
+
+test('the official cashier explains why a new meal waits, and a page error outranks it',async t=>{
+  const f=await panel(t);
+  f.emit({ready:false,cashier:true,complete:true,status:'已进入美团官方付款页',url:'https://mpay.meituan.com/resource/icashier/s/index.html'});await pause();
+  assert.equal(f.$('connection').textContent,'已进入官方付款页');assert.match(f.$('startHint').textContent,/付款页/);assert.equal(f.$('startMeal').disabled,true);
+  f.emit({ready:false,cashier:true,error:'网页加载失败：ConnectionAborted',url:'https://mpay.meituan.com/resource/icashier/s/index.html'});await pause();
+  assert.equal(f.$('connection').textContent,'美团页面暂时无法打开');assert.match(f.$('pageStatus').textContent,/ConnectionAborted/);
+});
+
+test('messages sit outside the scrolling area and the consent hint is not repeated',async t=>{
+  const f=await panel(t);assert.equal(f.$('message').closest('main'),null);
+  assert.equal(f.$('startHint').hidden,true);f.$('mealConsent').checked=true;f.change('mealConsent');
+  assert.equal(f.$('startHint').hidden,true);assert.equal(f.$('startMeal').disabled,false);
 });

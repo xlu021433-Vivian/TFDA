@@ -28,3 +28,8 @@ test('phone blocks disconnected or signed-out desktops and conflicting budgets w
   const f=await page(t),request=f.d.getElementById('request');request.value='想吃河粉 25元预算 一份';request.dispatchEvent(new f.w.Event('input'));const budget=f.d.getElementById('budget');budget.value='30';budget.dispatchEvent(new f.w.Event('input'));
   assert.equal(f.d.getElementById('start').disabled,true);assert.match(f.d.getElementById('intent').textContent,/不一致/);assert.equal(f.calls.length,0);
 });
+test('a blocked phone button is not repeated in the hint',async t=>{
+  const f=await page(t,{busy:true,stage:'menu'});
+  assert.match(f.d.getElementById('start').textContent,/准备中/);assert.equal(f.d.getElementById('start').disabled,true);assert.equal(f.d.getElementById('hint').hidden,true);
+  assert.equal(f.d.getElementById('progressCard').hidden,false);assert.equal(f.d.getElementById('workspace').classList.contains('has-activity'),true);
+});
