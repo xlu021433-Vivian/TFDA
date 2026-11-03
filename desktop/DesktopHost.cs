@@ -457,7 +457,8 @@ internal sealed class DesktopHost : Form
         store.Change(new Dictionary<string,object>{{"activeRun",new Dictionary<string,object>{{"id","navigation-guard-test"},{"stage","menu"}}}});UpdateOfficialNavigation();
         if(officialBack.Enabled||officialHome.Enabled)throw new IOException("点餐进行中仍可手动返回或跳转。");
         store.Remove(new[]{"activeRun"});UpdateOfficialNavigation();
-        NavigateOfficialBack();await Task.Delay(1000);
+        NavigateOfficialBack();
+        for(int wait=0;wait<40&&!(AtOfficialHome()&&documentReady);wait++)await Task.Delay(250);
         if(!AtOfficialHome()||!documentReady)throw new IOException("返回按钮未回到上一页："+official.Source);
         reading.Checked=true;official.Source=new Uri(Home);await Task.Delay(1000);
         // Full isolated flow now enters through the same bounded transport used by
