@@ -99,3 +99,11 @@ test('messages sit outside the scrolling area and the consent hint is not repeat
   assert.equal(f.$('startHint').hidden,true);f.$('mealConsent').checked=true;f.change('mealConsent');
   assert.equal(f.$('startHint').hidden,true);assert.equal(f.$('startMeal').disabled,false);
 });
+
+test('away from the start pages the home action becomes a visible way back',async t=>{
+  const f=await panel(t);assert.match(f.$('home').textContent,/挑店/);
+  f.emit({ready:true,url:'https://h5.waimai.meituan.com/waimai/mindex/address-list'});await pause();
+  assert.match(f.$('home').textContent,/返回外卖首页/);assert.equal(f.$('home').hidden,false);assert.equal(f.$('startMeal').disabled,true);
+  f.$('home').click();await pause();assert.ok(f.nativeCalls.some(x=>x.action==='navigate'&&x.args.url==='https://h5.waimai.meituan.com/waimai/mindex/home'));assert.equal(f.messages.length,0);
+});
+

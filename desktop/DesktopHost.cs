@@ -22,6 +22,7 @@ internal sealed class DesktopHost : Form
     readonly Timer remoteTimer=new Timer();
     readonly RemoteLink remote;
     readonly CheckBox reading=new CheckBox();
+    readonly Button officialBack=new Button(),officialHome=new Button();
     readonly Label renderStatus=new Label();
     bool wasMinimized,repainting;
     int renderRecoveries;
@@ -49,8 +50,19 @@ internal sealed class DesktopHost : Form
         BackColor=Color.FromArgb(251,243,246);
         var split=new SplitContainer { Size=new Size(1280,850),Dock=DockStyle.Fill,FixedPanel=FixedPanel.Panel1,SplitterWidth=1,SplitterDistance=396,Panel1MinSize=360,Panel2MinSize=560 };
         Controls.Add(split);panel.Dock=DockStyle.Fill;official.Dock=DockStyle.Fill;split.Panel1.Controls.Add(panel);split.Panel2.Controls.Add(official);
-        var officialBar=new Panel {Dock=DockStyle.Top,Height=40,BackColor=Color.FromArgb(251,243,246),Padding=new Padding(16,0,12,0)};
-        officialBar.Controls.Add(new Label {Text="美团 · 官方页面",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Color.FromArgb(123,101,115),Font=new Font("Microsoft YaHei UI",9)});
+        var officialBar=new Panel {Dock=DockStyle.Top,Height=44,BackColor=Color.FromArgb(251,243,246),Padding=new Padding(12,6,12,6)};
+        officialBar.Controls.Add(new Label {Text="美团 · 官方页面",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleLeft,ForeColor=Color.FromArgb(123,101,115),Font=new Font("Microsoft YaHei UI",9),Padding=new Padding(8,0,0,0)});
+        // The official H5 pages often rely on the phone app's own back bar, so the
+        // embedded page needs native navigation. Docked last means placed leftmost.
+        foreach(var button in new[]{officialHome,officialBack})
+        {
+            button.Dock=DockStyle.Left;button.Font=new Font("Microsoft YaHei UI",9);button.FlatStyle=FlatStyle.Flat;button.BackColor=Color.White;button.ForeColor=Color.FromArgb(163,63,105);
+            button.FlatAppearance.BorderColor=Color.FromArgb(233,207,221);button.Enabled=false;officialBar.Controls.Add(button);
+            if(button==officialHome)officialBar.Controls.Add(new Panel {Dock=DockStyle.Left,Width=6});
+        }
+        officialBack.Text="‹ 返回";officialBack.Width=76;officialHome.Text="外卖首页";officialHome.Width=84;
+        officialBack.Click+=delegate {NavigateOfficialBack();};
+        officialHome.Click+=delegate {if(CanNavigateOfficial())official.Source=new Uri(Home);};
         object savedReading;reading.Checked=!store.Engine.TryGetValue("officialReading",out savedReading)||Convert.ToBoolean(savedReading);
         reading.Text="舒适排版";reading.Dock=DockStyle.Right;reading.Width=110;reading.Font=new Font("Microsoft YaHei UI",9);reading.ForeColor=Color.FromArgb(163,63,105);
         officialBar.Controls.Add(reading);split.Panel2.Controls.Add(officialBar);officialBar.BringToFront();
@@ -134,6 +146,28 @@ internal sealed class DesktopHost : Form
             finally{repainting=false;}
         });
     }
+    bool TaskActive()
+    {
+        object value;if(!store.Engine.TryGetValue("activeRun",out value))return false;
+        var run=value as Dictionary<string,object>;
+        return run!=null&&run.ContainsKey("stage")&&!new[]{"done","failed","stopped"}.Contains(Convert.ToString(run["stage"]));
+    }
+    // Manual navigation never interrupts a running meal; pause it first, like the panel's reload.
+    bool CanNavigateOfficial(){return initialized&&official.CoreWebView2!=null&&!TaskActive();}
+    bool AtOfficialHome(){return official.Source!=null&&official.Source.GetLeftPart(UriPartial.Path)==Home;}
+    void UpdateOfficialNavigation()
+    {
+        if(IsDisposed)return;
+        bool allowed=CanNavigateOfficial();
+        officialBack.Enabled=allowed&&(official.CoreWebView2.CanGoBack||!AtOfficialHome());
+        officialHome.Enabled=allowed&&!AtOfficialHome();
+    }
+    internal void NavigateOfficialBack()
+    {
+        if(!CanNavigateOfficial())return;
+        // Without history (for example after a blocked app link) going back means the delivery home page.
+        if(official.CoreWebView2.CanGoBack)official.CoreWebView2.GoBack();else if(!AtOfficialHome())official.Source=new Uri(Home);
+    }
     static void StopInterruptedTask(LocalStore local)
     {
         object value;
@@ -190,6 +224,8 @@ internal sealed class DesktopHost : Form
                 SendPageState(false,"美团显示进程异常，已停止点餐；请核对官方订单。",false);
             };
             official.CoreWebView2.Settings.IsStatusBarEnabled=false;
+            official.CoreWebView2.HistoryChanged+=delegate {UpdateOfficialNavigation();};
+            official.CoreWebView2.SourceChanged+=delegate {UpdateOfficialNavigation();};
             official.CoreWebView2.WebMessageReceived+=PageMessage;
             official.CoreWebView2.NavigationStarting+=delegate(object sender,CoreWebView2NavigationStartingEventArgs args){
                 if(!AllowedNavigation(args.Uri))
@@ -222,6 +258,7 @@ internal sealed class DesktopHost : Form
                 bool supported=IsOfficial(official.Source.AbsoluteUri);documentReady=supported;
                 string unsupported=UnsupportedPage(official.Source.AbsoluteUri,official.CoreWebView2.DocumentTitle);
                 if(unsupported!=null)StopTaskForPageFailure(store,unsupported);
+                UpdateOfficialNavigation();
                 SendPageState(supported,unsupported,true);if(supported){await Inject();await official.CoreWebView2.ExecuteScriptAsync("globalThis.ShenqiReading?.setEnabled("+(reading.Checked?"true":"false")+")");}
             };
             string script="if(window===window.top&&location.origin==='https://h5.waimai.meituan.com'){\n";
@@ -244,7 +281,7 @@ internal sealed class DesktopHost : Form
             }
             panel.Source=new Uri("https://shenqi.local/options.html");
             await Task.WhenAny(panelReady.Task,Task.Delay(20000));if(!panelReady.Task.IsCompleted){string detail=await panel.CoreWebView2.ExecuteScriptAsync("JSON.stringify({title:document.title,message:document.getElementById('message')?.textContent,state:document.readyState})");throw new IOException("控制面板启动超时。"+detail+string.Join("；",errors.ToArray()));}
-            loading.Visible=false;initialized=true;RestoreWebViews();timer.Start();if(!Bootstrap.Test)remoteTimer.Start();official.Source=new Uri(Home);
+            loading.Visible=false;initialized=true;UpdateOfficialNavigation();RestoreWebViews();timer.Start();if(!Bootstrap.Test)remoteTimer.Start();official.Source=new Uri(Home);
             if(Bootstrap.Test&&!Bootstrap.Demo)await SelfTest();
         }
         catch(Exception error)
@@ -286,8 +323,8 @@ internal sealed class DesktopHost : Form
         {
             case "storage_get":
                 var output=new Dictionary<string,object>();foreach(var requestedKey in (System.Collections.IEnumerable)args["keys"]){string name=Convert.ToString(requestedKey);if(store.Engine.ContainsKey(name))output[name]=store.Engine[name];}return output;
-            case "storage_set":store.Change((Dictionary<string,object>)args["change"]);return new {ok=true};
-            case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);return new {ok=true};
+            case "storage_set":store.Change((Dictionary<string,object>)args["change"]);UpdateOfficialNavigation();return new {ok=true};
+            case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);UpdateOfficialNavigation();return new {ok=true};
             case "panel_ready":panelReady.TrySetResult(true);return new {ok=true};
             case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.6.4",remoteEnabled=remote.Enabled};
             case "remote_enable":
@@ -414,6 +451,14 @@ internal sealed class DesktopHost : Form
         reading.Checked=false;await Task.Delay(100);
         if(await official.CoreWebView2.ExecuteScriptAsync("document.documentElement.hasAttribute('data-shenqi-reading')")!="false")throw new IOException("无法恢复官方原样。");
         if(await official.CoreWebView2.ExecuteScriptAsync("getComputedStyle(document.documentElement).fontSize")!="\"120px\"")throw new IOException("官方原始缩放未恢复。");
+        // Native navigation: the H5 menu has no back bar inside the embedded browser.
+        UpdateOfficialNavigation();
+        if(!officialBack.Enabled||!officialHome.Enabled)throw new IOException("官方页面缺少返回入口。");
+        store.Change(new Dictionary<string,object>{{"activeRun",new Dictionary<string,object>{{"id","navigation-guard-test"},{"stage","menu"}}}});UpdateOfficialNavigation();
+        if(officialBack.Enabled||officialHome.Enabled)throw new IOException("点餐进行中仍可手动返回或跳转。");
+        store.Remove(new[]{"activeRun"});UpdateOfficialNavigation();
+        NavigateOfficialBack();await Task.Delay(1000);
+        if(!AtOfficialHome()||!documentReady)throw new IOException("返回按钮未回到上一页："+official.Source);
         reading.Checked=true;official.Source=new Uri(Home);await Task.Delay(1000);
         // Full isolated flow now enters through the same bounded transport used by
         // the phone page, and reaches the real panel/engine/WebView2 fixtures.
@@ -459,7 +504,7 @@ internal sealed class DesktopHost : Form
         if(singleSurface!="true")throw new IOException("右侧仍有重复的助手界面。");
         using(var left=new FileStream(Path.Combine(Bootstrap.Root,"panel.png"),FileMode.Create))await panel.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,left);
         // Official home/menu previews were captured above; the final receipt is verified structurally.
-        WriteReport(new {ok=true,sourceGuards=true,softwareRendering=true,restoreKeepsDocument=true,nativeRecoveryBar=true,navigationCancellationScoped=true,blockedAppLinkKeepsPage=true,realHttpErrorPreserved=true,embeddedBrowser=true,fullFixtureFlow=true,nonfoodExcluded=true,unsupportedRedirectStopped=true,reversibleOfficialReading=true,desktopRemScaleCapped=true,singleAssistantSurface=true,primaryActionVisible=true,narrowLayout=true,interruptedTaskNotResumed=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="4400000000000000001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,cashierReadOnly=true,paymentTokensRemoved=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
+        WriteReport(new {ok=true,officialBackNavigation=true,sourceGuards=true,softwareRendering=true,restoreKeepsDocument=true,nativeRecoveryBar=true,navigationCancellationScoped=true,blockedAppLinkKeepsPage=true,realHttpErrorPreserved=true,embeddedBrowser=true,fullFixtureFlow=true,nonfoodExcluded=true,unsupportedRedirectStopped=true,reversibleOfficialReading=true,desktopRemScaleCapped=true,singleAssistantSurface=true,primaryActionVisible=true,narrowLayout=true,interruptedTaskNotResumed=true,reportedNoodleRequest=true,ordinaryAddControl=true,unpaidOrder="4400000000000000001",total=1500,submissions,recurrenceNotEnabled=true,encryptedState=true,cashierReadOnly=true,paymentTokensRemoved=true,frontendErrors=errors,windowWidth=Width,windowHeight=Height});
         ExitCode=0;Close();
     }
     string Fixture(string path)

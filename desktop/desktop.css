@@ -99,6 +99,7 @@ main{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#d
 .preferences{display:flex;gap:6px;flex-wrap:wrap;list-style:none;padding:0;margin:10px 0 0}
 .preferences li{padding:2px 8px;border-radius:7px;background:var(--soft);color:var(--brand);font-size:11px}
 #home{margin:0 0 4px;font-size:12px}
+#home.return{color:var(--brand);border-color:var(--line);background:var(--surface)}
 .stop-button{background:transparent;color:var(--bad);border-color:#dfbfb2;font-size:12px;margin-top:8px}
 .stop-button:hover{background:var(--bad-soft)}
 

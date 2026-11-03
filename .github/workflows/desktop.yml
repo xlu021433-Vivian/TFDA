@@ -36,3 +36,11 @@ jobs:
           if (-not $job.WaitForExit(120000)) { $job.Kill(); throw 'Desktop verification timeout' }
           if (Test-Path $report) { Get-Content $report }
           if ($job.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Desktop verification failed' }
+      - name: Keep the verified EXE for download
+        uses: actions/upload-artifact@v4
+        with:
+          name: Shenqi-Desktop
+          path: |
+            dist/desktop-0.6.4/Shenqi-Desktop.exe
+            dist/desktop-0.6.4/SHA256SUMS.txt
+          retention-days: 14
