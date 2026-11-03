@@ -63,13 +63,16 @@
     else if(page.cashier)reason='这是官方付款页。付款后回到外卖首页，再开始下一餐。';
     else if(!page.ready)reason='正在等待右侧美团页面连接。';
     else if(page.loginNeeded)reason='请先在右侧美团页面完成登录。';
-    else if(!['/waimai/mindex/home','/waimai/mindex/menu','/waimai/mindex/mine'].includes(path()))reason='先回到美团首页或商家菜单，再开始新的一餐。';
+    else if(!['/waimai/mindex/home','/waimai/mindex/menu','/waimai/mindex/mine'].includes(path()))reason='先回到外卖首页或商家菜单，再开始新的一餐。';
     else if(!parsed)reason='请先调整上方的需求或预算。';
     else if(!$('mealConsent').checked){reason='核对右侧账号、地址后，勾选本次授权。';consentOnly=true;}
     $('startHint').textContent=consentOnly?'':reason;$('startHint').hidden=consentOnly||!reason;
     $('startHint').classList.toggle('bad',!!page.error||!parsed);
     $('startMeal').disabled=!!reason;
     $('startMeal').textContent=actionBusy?'正在准备…':path()==='/waimai/mindex/menu'?'在这家店选餐':parsed&&(parsed.category||parsed.keywords?.length)?'按需求帮我选餐':'帮我随机选餐';
+    // Away from the start pages (an address list, an order detail) this becomes the way back.
+    const awayFromStart=page.ready&&!page.error&&!['/waimai/mindex/home','/waimai/mindex/menu'].includes(path());
+    $('home').textContent=awayFromStart?'← 返回外卖首页':'想自己挑店？打开美团首页 →';$('home').classList.toggle('return',awayFromStart);
     $('home').hidden=$('requestForm').hidden;$('home').disabled=running||guarded()||actionBusy||stopping;
     $('reload').disabled=running||actionBusy||stopping;
     $('recoverHome').hidden=!page.error||running||guarded();
