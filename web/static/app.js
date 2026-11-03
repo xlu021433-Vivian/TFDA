@@ -2,7 +2,13 @@
   'use strict';
   const $=id=>document.getElementById(id);
   let state={},csrf='',sending=false,pending=sessionStorage.getItem('shenqiPending')||'',pendingAt=Number(sessionStorage.getItem('shenqiPendingAt')||Date.now()),reading=false;
-  function say(value,bad=false){$('message').textContent=value;$('message').classList.toggle('bad',bad);$('message').hidden=!value;}
+  // Connection errors clear once a later status read succeeds; confirmations fade; other errors stay.
+  let saidTimer=null,saidConnection=false;
+  function say(value,bad=false,connection=false){
+    clearTimeout(saidTimer);saidConnection=!!value&&connection;
+    $('message').textContent=value;$('message').classList.toggle('bad',bad);$('message').hidden=!value;
+    if(value&&!bad)saidTimer=setTimeout(()=>{if($('message').textContent===value)say('');},8000);
+  }
   function interpret(syncBudget=false){
     try{
       const intent=ShenqiPolicy.intent($('request').value);
@@ -26,17 +32,23 @@
     let reason=!online?'等待桌面神器连接':!enabled?'请先在桌面启用远程控制':state.loginNeeded?'请先在电脑登录美团':pending||state.queued?'等待电脑确认本次请求':state.busy?'这一餐正在准备中':state.locked?'请先核对上一笔官方订单':state.unresolved?'上一笔接收结果需在桌面核对':!state.ready?'请先在桌面准备美团页面':!parsed?'请调整需求或预算':'';
     $('start').disabled=!!reason||sending;
     $('start').textContent=sending?'正在发送…':reason||('用券选1餐 · 不超过¥'+(parsed.budget/100).toFixed(2));
-    $('hint').textContent=reason||'实际用券、券后不超预算，才会创建1笔待支付订单。';
+    // The button already names what blocks it; the hint only adds where to resolve it.
+    const where=state.locked||state.unresolved?'在电脑上的神器核对后，才能发送下一餐。':'';
+    $('hint').textContent=where;$('hint').hidden=!where;
     $('stop').disabled=!online||!enabled||sending;
-    $('progressCard').hidden=!(state.busy||pending||state.queued||state.requestError||state.unresolved);
+    const showProgress=!!(state.busy||pending||state.queued||state.requestError||state.unresolved);
+    $('progressCard').hidden=!showProgress;
     $('stageTitle').textContent=state.requestError?'需要你处理':pending||state.queued?'请求已发出，等电脑确认':({home:'正在为你挑选商家',menu:'正在选择餐品',preview:'正在核对用券与金额',done:'已生成待支付订单',failed:'本次点餐已停止',stopped:'本次点餐已暂停'})[state.stage]||'正在准备这一餐';
     $('stageDetail').textContent=state.requestError||state.message||'请保持电脑和神器运行，不要重复下单。';
-    for(const item of $('steps').children)item.classList.toggle('current',item.dataset.step===state.stage);
+    const steps=[...$('steps').children],current=steps.findIndex(item=>item.dataset.step===state.stage);
+    steps.forEach((item,index)=>{item.classList.toggle('current',index===current);item.classList.toggle('done',current>0&&index<current);if(index===current)item.setAttribute('aria-current','step');else item.removeAttribute('aria-current');});
     const order=online&&state.order;
     let url;try{url=new URL(order?.url);}catch{}
     const valid=order&&/^\d{8,40}$/.test(order.id)&&Number.isSafeInteger(order.amount)&&order.amount>0&&url?.protocol==='https:'&&url.hostname==='h5.waimai.meituan.com'&&!url.port;
     $('orderCard').hidden=!valid;
-    if(valid){$('orderAmount').textContent='¥ '+(order.amount/100).toFixed(2);$('orderId').textContent=order.id;$('orderLink').href=url.href;$('orderHint').textContent=order.couponVerified===false?'本笔订单的用券情况未核实，请在官方页核对。':'请在官方有效期内本人付款，实时状态以美团为准。';}
+    if(valid){const unverified=order.couponVerified===false;$('orderTitle').textContent=unverified?'发现待支付订单。':'这一餐，等你付款。';$('orderAmount').textContent='¥ '+(order.amount/100).toFixed(2);$('orderId').textContent=order.id;$('orderLink').href=url.href;$('orderHint').textContent=unverified?'本笔订单的用券情况未核实，请在官方页核对。':'请在官方有效期内本人付款，实时状态以美团为准。';}
+    // On narrow screens an active meal or a waiting order comes before the note.
+    $('workspace').classList.toggle('has-activity',showProgress||!!valid);
   }
   async function api(path,options={}){
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
@@ -49,8 +61,8 @@
   }
   async function refresh(){
     if(reading)return;reading=true;
-    try{const result=await api('status');state=result.status;csrf=result.csrf;render();}
-    catch(error){state={online:false};render();say(error.message||'无法确认桌面状态，请稍后刷新。',true);}
+    try{const result=await api('status');state=result.status;csrf=result.csrf;if(saidConnection)say('');render();}
+    catch(error){state={online:false};render();say(error.message||'无法确认桌面状态，请稍后刷新。',true,true);}
     finally{reading=false;}
   }
   $('mealForm').onsubmit=async event=>{

@@ -24,7 +24,12 @@
   const guarded=()=>!!(state.submissionAttempt||state.observedOrder);
   const active=()=>state.activeRun&&!['failed','done','stopped'].includes(state.activeRun.stage);
   function path(){try{return new URL(page.url).pathname;}catch{return '';}}
-  function tell(text,error=false){$('message').textContent=text;$('message').classList.toggle('bad',error);$('message').hidden=!text;}
+  // Confirmations fade on their own; errors stay until the next action or input.
+  let toldTimer=null;
+  function tell(text,error=false){
+    clearTimeout(toldTimer);$('message').textContent=text;$('message').classList.toggle('bad',error);$('message').hidden=!text;
+    if(text&&!error)toldTimer=setTimeout(()=>{if($('message').textContent===text)tell('');},8000);
+  }
   function interpret(){
     try{
       const parsed=ShenqiPolicy.intent($('request').value),budget=ShenqiPolicy.cents($('budget').value);
@@ -48,41 +53,47 @@
     $('manualSpecs').hidden=!needsSpecs;
     if(!needsSpecs)$('specConsent').checked=false;
     $('resumeSpecs').disabled=!needsSpecs||!$('specConsent').checked||actionBusy||stopping;
-    let reason='';
+    // The hint explains only what blocks the button; the consent checkbox above it speaks for itself.
+    let reason='',consentOnly=false;
     if(!storageReady)reason='正在读取本机设置，请稍等。';
     else if(actionBusy||stopping)reason='正在处理，请稍等。';
     else if(guarded())reason='请先核对上一笔官方订单。';
     else if(running)reason='当前点餐进行中。';
-    else if(!page.ready||page.error)reason=page.error||'正在等待右侧美团页面连接。';
+    else if(page.error)reason='先返回外卖首页或重新加载，再开始新的一餐。';
+    else if(page.cashier)reason='这是官方付款页。付款后回到外卖首页，再开始下一餐。';
+    else if(!page.ready)reason='正在等待右侧美团页面连接。';
     else if(page.loginNeeded)reason='请先在右侧美团页面完成登录。';
     else if(!['/waimai/mindex/home','/waimai/mindex/menu','/waimai/mindex/mine'].includes(path()))reason='先回到美团首页或商家菜单，再开始新的一餐。';
     else if(!parsed)reason='请先调整上方的需求或预算。';
-    else if(!$('mealConsent').checked)reason='核对右侧账号、地址后，勾选本次授权。';
-    $('startHint').textContent=reason||'准备好了。实际用券且最终金额不超预算，才会提交一次。';
+    else if(!$('mealConsent').checked){reason='核对右侧账号、地址后，勾选本次授权。';consentOnly=true;}
+    $('startHint').textContent=consentOnly?'':reason;$('startHint').hidden=consentOnly||!reason;
     $('startHint').classList.toggle('bad',!!page.error||!parsed);
     $('startMeal').disabled=!!reason;
     $('startMeal').textContent=actionBusy?'正在准备…':path()==='/waimai/mindex/menu'?'在这家店选餐':parsed&&(parsed.category||parsed.keywords?.length)?'按需求帮我选餐':'帮我随机选餐';
-    $('home').disabled=running||guarded()||actionBusy||stopping;
+    $('home').hidden=$('requestForm').hidden;$('home').disabled=running||guarded()||actionBusy||stopping;
     $('reload').disabled=running||actionBusy||stopping;
     $('recoverHome').hidden=!page.error||running||guarded();
     $('recoverHome').disabled=actionBusy||stopping;
     $('stop').hidden=!running&&!(guarded()&&!currentOrder)&&!state.schedule?.enabled;
-    $('stop').disabled=stopping;$('stop').textContent=stopping?'正在暂停…':'暂停点餐与后续定时';
-    $('connection').textContent=page.cashier?'已进入官方付款页':page.error?'美团页面暂时无法打开':page.loginNeeded?'请先登录美团':page.ready?'美团内容已加载':'正在连接美团';
+    $('stop').disabled=stopping;$('stop').textContent=stopping?'正在暂停…':running||guarded()?'暂停点餐与后续定时':'暂停后续定时点餐';
+    // Errors take precedence over the cashier label so a failure on the payment page is never shown as normal.
+    $('connection').textContent=page.error?'美团页面暂时无法打开':page.cashier?'已进入官方付款页':page.loginNeeded?'请先登录美团':page.ready?'美团内容已加载':'正在连接美团';
     $('dot').className='dot '+(page.error?'bad':page.ready&&!page.loginNeeded?'good':'');
-    $('pageStatus').textContent=page.error|| (page.loginNeeded?'在右侧官方页面完成登录':page.ready?'登录与配送地址请在右侧核对':page.cashier?'请在右侧核对订单，付款由你完成':'稍等一下，正在准备官方页面');
+    $('pageStatus').textContent=page.error||(page.cashier?'请在右侧核对订单，付款由你完成':page.loginNeeded?'在右侧官方页面完成登录':page.ready?'登录与配送地址请在右侧核对':'稍等一下，正在准备官方页面');
+    // The progress card covers an active meal, an unconfirmed submission or a page problem.
+    // A recognised order has its own card, so the progress card is not shown with it.
     let title='正在准备这一餐',detail=page.status||'正在等待官方页面信息。',kind='';
     if(running)title=needsSpecs?'等你确认规格':({home:'正在为你挑选商家',menu:'正在选择餐品并加购',preview:'正在核对用券与最终金额'})[run.stage]||title;
     if(guarded()&&!currentOrder){title='等待官方订单结果';detail='已尝试提交一次。请查看右侧或手机美团订单；未确认真实订单号前不会重试。';}
-    if(page.error){title='需要处理页面连接';detail=page.error;kind='bad';}
-    if(currentOrder){title=currentOrder.source==='observed'?'发现待支付订单，优惠待核对':'待支付订单已确认';detail=currentOrder.source==='observed'?'这笔订单不是助手验证用券后提交的，请在官方页面核对优惠。':'付款由你完成，实时状态以美团官方页面为准。';kind='good';}
+    if(page.error){title='页面需要处理';detail=running||guarded()?page.error:'';kind='bad';}
     $('flowTitle').textContent=title;$('flowDetail').textContent=detail;$('flow').className='flow '+kind;
     $('flow').hidden=!!currentOrder||(!running&&!state.submissionAttempt&&!page.error);
+    $('meal').dataset.phase=running||guarded()||currentOrder||page.error?'active':'idle';
     const stages=['home','menu','preview','done'],current=currentOrder?3:state.submissionAttempt?2:stages.indexOf(run?.stage);
     $('steps').hidden=!running&&!currentOrder;
     for(const item of $('steps').children){const index=stages.indexOf(item.dataset.step);item.classList.toggle('current',index===current);item.classList.toggle('done',index<current);if(index===current)item.setAttribute('aria-current','step');else item.removeAttribute('aria-current');}
     $('order').hidden=!currentOrder;
-    if(currentOrder){$('orderId').textContent=currentOrder.orderId;$('orderAmount').textContent=ShenqiPolicy.money(currentOrder.total);$('orderHint').textContent=currentOrder.source==='observed'?'用券情况未核实；核对官方订单后再付款。':'请在美团有效期内本人付款。';}
+    if(currentOrder){const observed=currentOrder.source==='observed';$('orderTitle').textContent=observed?'发现待支付订单':'这一餐，等你付款';$('orderId').textContent=currentOrder.orderId;$('orderAmount').textContent=ShenqiPolicy.money(currentOrder.total);$('orderHint').textContent=observed?'用券情况未核实；核对官方订单后再付款。':'请在美团有效期内本人付款。';}
     $('recovery').hidden=!guarded();
     $('clear').disabled=!$('reviewed').checked||actionBusy||stopping||running;
     $('recoveryHint').textContent=running?'当前任务仍在进行。请先点“暂停”，再核对官方订单后解除防重记录。':'先在官方订单中核对上一笔结果。解除防重记录不会取消订单，也不会清空购物车。';
@@ -91,8 +102,9 @@
     $('scheduleState').textContent=state.schedule?.enabled?'已启用 · 北京时间 '+state.schedule.time+' · 券后含配送 '+ShenqiPolicy.money(state.schedule.budget):'当前未启用，到点不会自动下单。';
     $('barkState').textContent=nativeStatus.barkConfigured?'已保存手机推送设置。'+(nativeStatus.lastBark===true?'最近一次推送已被Bark服务接受，请在手机确认收到。':nativeStatus.lastBark===false?'最近一次推送失败，请检查key和网络。':'可以发送测试通知，确认手机能收到。'):'尚未设置手机推送，电脑通知仍可使用。';
     $('remoteState').textContent=nativeStatus.remoteEnabled?'已允许 L5 管理员账号发送选餐和暂停请求。电脑与神器需保持运行。':'手机控制未启用，网页不会执行点餐。';
-    $('phoneTitle').textContent=nativeStatus.remoteEnabled?'手机连接已开启':'在手机上点餐';
-    $('phoneDetail').textContent=nativeStatus.remoteEnabled?'l5space.icu/shenqi/ · 已记住这台电脑':'允许L5管理员用当前地址选餐，只到待支付';
+    $('phoneTitle').textContent=nativeStatus.remoteEnabled?'手机连接已开启':'手机点餐';
+    $('phoneDot').className='dot '+(nativeStatus.remoteEnabled?'good':'off');
+    $('phoneDetail').textContent=nativeStatus.remoteEnabled?'l5space.icu/shenqi/ · 已记住这台电脑':'L5管理员可用当前地址选餐 · 只到待支付';
     $('connectPhone').textContent=nativeStatus.remoteEnabled?'断开':'连接手机';
     $('connectPhone').disabled=actionBusy||stopping;
     $('resetRemote').disabled=!$('remoteReviewed').checked||actionBusy||stopping||running||guarded();
