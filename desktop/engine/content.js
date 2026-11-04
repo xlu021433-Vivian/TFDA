@@ -305,7 +305,14 @@
         status('正在选择商家：'+chosen.name);adapter.openShop(chosen,task.config.budget,task.config.request,task.tried);return;
       }
       if(task.stage!=='menu')throw Error('购物车阶段无法核对，不会重复加购');
-      adapter.ensure();if(adapter.cart().count!==0)throw Error('商家已有购物车商品，无法确认来源，今日不自动修改');
+      adapter.ensure();
+      const inCart=adapter.cart().count;
+      if(inCart===null)throw Error('无法读取这家店的购物车数量，不会自动加购；没有创建新订单');
+      if(inCart>0){
+        // Items left from an earlier try are never touched. A randomly chosen shop is simply skipped.
+        if(!task.currentShop&&task.config.anyShop&&task.tried.length<5){status('这家店购物车里已有商品，换一家');await message({type:'schedule_stage',id:task.id,stage:'home'});if(stopped)throw Error('已暂停换店');location.assign('https://h5.waimai.meituan.com/waimai/mindex/home');return;}
+        throw Error('这家店的购物车里已有商品。请先在右侧清空购物车再开始；没有创建新订单');
+      }
       const request=P.intent(task.config.request),all=adapter.cards();
       const eligible=wanted=>all.filter(item=>item.cents*wanted.quantity>=task.minimum&&(!task.merchant||task.merchant.foods.includes(item.name))&&(wanted.category||wanted.keywords?.length||/饭|面|鸡|牛|羊|沙拉|轻食/.test(item.name)));
       let plan;

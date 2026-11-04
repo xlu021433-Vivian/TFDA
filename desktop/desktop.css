@@ -58,6 +58,7 @@ p{color:var(--muted);margin:8px 0 14px;font-size:12px}
 .brand b{font-size:19px;font-weight:650;letter-spacing:.5px;line-height:1.2}
 .brand-period{color:var(--brand)}
 .version{font-size:11px;color:var(--quiet);font-variant-numeric:tabular-nums;white-space:nowrap}
+.update-button{flex-shrink:0;font-size:12px;padding:6px 12px;color:var(--brand);background:var(--soft);border-color:#e9c9d8;white-space:nowrap}
 
 .status-group{flex-shrink:0;margin:0 var(--gutter) 12px;background:var(--surface);border:1px solid var(--surface-edge);border-radius:var(--radius-s);box-shadow:var(--shadow)}
 .connection,.phone-connect{display:flex;align-items:center;gap:10px;min-height:52px;padding:4px 6px 4px 14px}
@@ -133,9 +134,9 @@ main{flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#d
 .order .amount-value{font:20px var(--figure);color:var(--brand)}
 .order p{margin:0;text-align:center;font-size:11px}
 .order .wide{margin-bottom:8px}
-.recovery,.history{border-top:1px solid var(--line);margin:16px 0 0;padding-top:4px}
-.recovery p,.history p{white-space:pre-wrap;overflow-wrap:anywhere}
-.history{font-size:12px;color:var(--muted)}
+.recovery{border-top:1px solid var(--line);margin:16px 0 0;padding-top:4px}
+.recovery p{white-space:pre-wrap;overflow-wrap:anywhere}
+.flow .dismiss{display:block;margin:8px 0 -6px auto;min-height:36px;padding:4px 10px}
 
 /* Settings */
 .settings-card>p{margin-top:0}
@@ -170,7 +171,6 @@ footer p{font-size:11px}
 .message{flex-shrink:0;margin:0 var(--gutter) 10px;padding:10px 12px;border-radius:10px;background:var(--soft);color:var(--brand);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:30vh;overflow-y:auto}
 .message.bad{background:var(--bad-soft);color:var(--bad)}
 .meal-action{flex-shrink:0;padding:14px var(--gutter) 16px;background:rgba(255,249,252,.95);border-top:1px solid var(--line);box-shadow:0 -8px 28px -24px rgba(126,57,89,.25)}
-.meal-action .consent{font-size:12px;line-height:1.65;margin:0 0 10px}
 .start-hint{margin:0 0 8px;font-size:11px;line-height:1.5;color:var(--muted)}
 .start-hint.bad{color:var(--bad)}
 

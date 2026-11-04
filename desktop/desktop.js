@@ -23,6 +23,9 @@
   const message=body=>runtime.message(body,sender);
   const guarded=()=>!!(state.submissionAttempt||state.observedOrder);
   const active=()=>state.activeRun&&!['failed','done','stopped'].includes(state.activeRun.stage);
+  // Any loaded official page can start a meal; the runtime returns to the delivery home (or keeps the open shop).
+  const startable=()=>!!page.ready&&!page.error&&!page.cashier&&!page.loginNeeded;
+  let dismissedRun='';try{dismissedRun=localStorage.getItem('shenqiDismissedRun')||'';}catch{}
   function path(){try{return new URL(page.url).pathname;}catch{return '';}}
   // Confirmations fade on their own; errors stay until the next action or input.
   let toldTimer=null;
@@ -40,7 +43,7 @@
     }catch(error){$('intentResult').textContent=error.message;$('intentResult').classList.add('bad');return null;}
   }
   function readInput(){
-    $('mealConsent').checked=false;tell('');
+    tell('');
     try{const input=ShenqiPolicy.intent($('request').value);if(input.budget!==null)$('budget').value=(input.budget/100).toFixed(2);}catch{}
     render();
   }
@@ -53,8 +56,8 @@
     $('manualSpecs').hidden=!needsSpecs;
     if(!needsSpecs)$('specConsent').checked=false;
     $('resumeSpecs').disabled=!needsSpecs||!$('specConsent').checked||actionBusy||stopping;
-    // The hint explains only what blocks the button; the consent checkbox above it speaks for itself.
-    let reason='',consentOnly=false;
+    // Clicking the button is the per-meal authorization, so the line under it states exactly what it authorizes.
+    let reason='';
     if(!storageReady)reason='正在读取本机设置，请稍等。';
     else if(actionBusy||stopping)reason='正在处理，请稍等。';
     else if(guarded())reason='请先核对上一笔官方订单。';
@@ -63,13 +66,12 @@
     else if(page.cashier)reason='这是官方付款页。付款后回到外卖首页，再开始下一餐。';
     else if(!page.ready)reason='正在等待右侧美团页面连接。';
     else if(page.loginNeeded)reason='请先在右侧美团页面完成登录。';
-    else if(!['/waimai/mindex/home','/waimai/mindex/menu','/waimai/mindex/mine'].includes(path()))reason='先回到外卖首页或商家菜单，再开始新的一餐。';
     else if(!parsed)reason='请先调整上方的需求或预算。';
-    else if(!$('mealConsent').checked){reason='核对右侧账号、地址后，勾选本次授权。';consentOnly=true;}
-    $('startHint').textContent=consentOnly?'':reason;$('startHint').hidden=consentOnly||!reason;
-    $('startHint').classList.toggle('bad',!!page.error||!parsed);
+    $('startHint').textContent=reason||'点击即授权：用右侧账号地址下1笔待支付订单，付款由你完成';
+    $('startHint').hidden=false;$('startHint').classList.toggle('bad',!!page.error||!parsed);
     $('startMeal').disabled=!!reason;
-    $('startMeal').textContent=actionBusy?'正在准备…':path()==='/waimai/mindex/menu'?'在这家店选餐':parsed&&(parsed.category||parsed.keywords?.length)?'按需求帮我选餐':'帮我随机选餐';
+    const budgetCents=ShenqiPolicy.cents($('budget').value);
+    $('startMeal').textContent=actionBusy?'正在准备…':(path()==='/waimai/mindex/menu'?'在这家店':'')+'用券选1餐'+(parsed?' · 不超过'+ShenqiPolicy.money(budgetCents):'');
     // Away from the start pages (an address list, an order detail) this becomes the way back.
     const awayFromStart=page.ready&&!page.error&&!['/waimai/mindex/home','/waimai/mindex/menu'].includes(path());
     $('home').textContent=awayFromStart?'← 返回外卖首页':'想自己挑店？打开美团首页 →';$('home').classList.toggle('return',awayFromStart);
@@ -88,10 +90,14 @@
     let title='正在准备这一餐',detail=page.status||'正在等待官方页面信息。',kind='';
     if(running)title=needsSpecs?'等你确认规格':({home:'正在为你挑选商家',menu:'正在选择餐品并加购',preview:'正在核对用券与最终金额'})[run.stage]||title;
     if(guarded()&&!currentOrder){title='等待官方订单结果';detail='已尝试提交一次。请查看右侧或手机美团订单；未确认真实订单号前不会重试。';}
+    // A finished-but-unsuccessful meal keeps its reason in view until the next meal or "知道了".
+    const lastRun=!running&&!guarded()&&!currentOrder&&['failed','stopped'].includes(run?.stage)&&run.id!==dismissedRun?run:null;
+    if(lastRun){const failed=lastRun.stage==='failed';title=failed?'上次没点成':'上次点餐已暂停';detail=(lastRun.reason||(failed?'点餐未完成':'已由你暂停'))+(/购物车/.test(lastRun.reason||'')?'':'\n已加入的商品还在右侧购物车，需要时先清空再点。');kind=failed?'bad':'';}
     if(page.error){title='页面需要处理';detail=running||guarded()?page.error:'';kind='bad';}
     $('flowTitle').textContent=title;$('flowDetail').textContent=detail;$('flow').className='flow '+kind;
-    $('flow').hidden=!!currentOrder||(!running&&!state.submissionAttempt&&!page.error);
-    $('meal').dataset.phase=running||guarded()||currentOrder||page.error?'active':'idle';
+    $('flow').hidden=!!currentOrder||(!running&&!state.submissionAttempt&&!page.error&&!lastRun);
+    $('dismissRun').hidden=!lastRun||!!page.error;
+    $('meal').dataset.phase=running||guarded()||currentOrder||page.error||lastRun?'active':'idle';
     const stages=['home','menu','preview','done'],current=currentOrder?3:state.submissionAttempt?2:stages.indexOf(run?.stage);
     $('steps').hidden=!running&&!currentOrder;
     for(const item of $('steps').children){const index=stages.indexOf(item.dataset.step);item.classList.toggle('current',index===current);item.classList.toggle('done',index<current);if(index===current)item.setAttribute('aria-current','step');else item.removeAttribute('aria-current');}
@@ -100,8 +106,6 @@
     $('recovery').hidden=!guarded();
     $('clear').disabled=!$('reviewed').checked||actionBusy||stopping||running;
     $('recoveryHint').textContent=running?'当前任务仍在进行。请先点“暂停”，再核对官方订单后解除防重记录。':'先在官方订单中核对上一笔结果。解除防重记录不会取消订单，也不会清空购物车。';
-    $('history').hidden=running||guarded()||!['failed','stopped'].includes(run?.stage);
-    $('historyDetail').textContent=run?.stage==='failed'?(run.reason||'上次点餐未完成')+'。已加购商品请在官方购物车核对。':run?.stage==='stopped'?(run.reason||'上次点餐已由你暂停。已加购商品请在官方购物车核对。'):'';
     $('scheduleState').textContent=state.schedule?.enabled?'已启用 · 北京时间 '+state.schedule.time+' · 券后含配送 '+ShenqiPolicy.money(state.schedule.budget):'当前未启用，到点不会自动下单。';
     $('barkState').textContent=nativeStatus.barkConfigured?'已保存手机推送设置。'+(nativeStatus.lastBark===true?'最近一次推送已被Bark服务接受，请在手机确认收到。':nativeStatus.lastBark===false?'最近一次推送失败，请检查key和网络。':'可以发送测试通知，确认手机能收到。'):'尚未设置手机推送，电脑通知仍可使用。';
     $('remoteState').textContent=nativeStatus.remoteEnabled?'已允许 L5 管理员账号发送选餐和暂停请求。电脑与神器需保持运行。':'手机控制未启用，网页不会执行点餐。';
@@ -112,6 +116,8 @@
     $('connectPhone').disabled=actionBusy||stopping;
     $('resetRemote').disabled=!$('remoteReviewed').checked||actionBusy||stopping||running||guarded();
     for(const id of ['saveSchedule','saveBark','testNotice','diagnostics','shortcut'])$(id).disabled=actionBusy||stopping;
+    $('version').textContent=nativeStatus.version||'';$('version').hidden=!!nativeStatus.latestVersion;
+    $('update').hidden=!nativeStatus.latestVersion;$('update').textContent='下载新版 '+(nativeStatus.latestVersion||'');
   }
   async function refresh(force=false){
     if(refreshPromise){await refreshPromise;if(!force)return state;}
@@ -136,7 +142,7 @@
     if(data.channel==='page-request')runtime.message(data.body,{id:'shenqi-desktop',url:data.url,tab:{id:1,url:data.url}}).then(result=>rpc('page_result',{id:data.id,result}),error=>rpc('page_result',{id:data.id,result:{ok:false,error:error.message}})).catch(()=>{});
     if(data.channel==='page-state'){
       const next=data.state;
-      if(next.ready===false||next.url&&next.url!==page.url){page={ready:false,pendingSpecs:false,loginNeeded:false,status:''};$('mealConsent').checked=false;$('specConsent').checked=false;}
+      if(next.ready===false||next.url&&next.url!==page.url){page={ready:false,pendingSpecs:false,loginNeeded:false,status:''};$('specConsent').checked=false;}
       page={...page,...next};render();
       if(next.complete&&page.ready)runtime.inject(1,{status:'complete'},{url:page.url}).catch(()=>{});
       refresh().catch(error=>tell(error.message,true));
@@ -149,19 +155,19 @@
   }
   for(const button of document.querySelectorAll('nav button')){button.onclick=()=>tab(button);button.onkeydown=event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const items=[...document.querySelectorAll('nav button')],index=items.indexOf(button),next=event.key==='Home'?0:event.key==='End'?items.length-1:(index+(event.key==='ArrowRight'?1:-1)+items.length)%items.length;tab(items[next]);items[next].focus();};}
   for(const button of document.querySelectorAll('[data-request]'))button.onclick=()=>{$('request').value=button.dataset.request;readInput();$('request').focus();};
-  $('request').oninput=readInput;$('budget').oninput=()=>{$('mealConsent').checked=false;tell('');render();};
-  $('mealConsent').onchange=render;$('specConsent').onchange=render;$('reviewed').onchange=render;
+  $('request').oninput=readInput;$('budget').oninput=()=>{tell('');render();};
+  $('specConsent').onchange=render;$('reviewed').onchange=render;
   for(const input of document.querySelectorAll('#schedule input:not(#scheduleConsent):not(#enabled)'))input.addEventListener('input',()=>{$('scheduleConsent').checked=false;});
   $('home').onclick=()=>action(()=>rpc('navigate',{url:'https://h5.waimai.meituan.com/waimai/mindex/home'}));
   $('recoverHome').onclick=()=>action(()=>rpc('navigate',{url:'https://h5.waimai.meituan.com/waimai/mindex/home'}));
   $('reload').onclick=()=>action(()=>rpc('reload'));
   $('startMeal').onclick=()=>action(async()=>{
-    if(!$('mealConsent').checked||!page.ready||page.loginNeeded||!storageReady)throw Error('请先核对右侧账号与地址，并勾选本次授权');
+    if(!startable()||!storageReady)throw Error('请先在右侧打开美团页面并完成登录');
     const intent=interpret(),budget=ShenqiPolicy.cents($('budget').value);
     if(!intent)throw Error($('intentResult').textContent);
     const currentMenu=path()==='/waimai/mindex/menu'?page.url:null;
     await message({type:'start_now',currentMenu,schedule:{...ShenqiSchedule.defaults,enabled:true,authorized:true,budget,request:$('request').value,anyShop:true,defaultSpecs:true}});
-    $('mealConsent').checked=false;tell('');
+    tell('');
   });
   $('stop').onclick=async()=>{
     if(stopping)return;stopping=true;render();
@@ -173,19 +179,21 @@
     await rpc('page_command',{body:{type:'verify_pending',reviewed:true}});$('specConsent').checked=false;tell('正在核对官方菜品和购物车数量；没有核对成功时不会再加一份。');
   });
   $('saveSchedule').onclick=()=>action(async()=>{await message({type:'configure_schedule',schedule:config($('enabled').checked)});tell('定时设置已保存在本机。');});
-  $('clear').onclick=()=>action(async()=>{if(active())throw Error('请先暂停当前任务，再核对官方订单');if(!$('reviewed').checked)throw Error('请先在官方订单核对上一笔结果');await message({type:'clear',reviewed:true});$('reviewed').checked=false;$('mealConsent').checked=false;tell('已解除防重记录。请重新核对右侧账号、地址与购物车后准备下一餐。');});
+  $('clear').onclick=()=>action(async()=>{if(active())throw Error('请先暂停当前任务，再核对官方订单');if(!$('reviewed').checked)throw Error('请先在官方订单核对上一笔结果');await message({type:'clear',reviewed:true});$('reviewed').checked=false;tell('已解除防重记录。请重新核对右侧账号、地址与购物车后准备下一餐。');});
   $('openOrder').onclick=()=>action(()=>rpc('navigate',{url:(state.observedOrder||state.lastOrder)?.url}));
   $('saveBark').onclick=()=>action(async()=>{const key=$('barkKey').value.trim();if(!/^[A-Za-z0-9_-]{5,256}$/.test(key))throw Error('请输入Bark提供的真实key');await rpc('save_bark',{key});$('barkKey').value='';tell('手机推送设置已加密保存在本机。');});
   $('testNotice').onclick=()=>action(async()=>{const result=await rpc('notify',{id:'shenqi-test',options:{title:'神器 · 通知测试',message:'桌面助手通知测试，没有创建订单。'}});tell(result.bark?'Bark服务已接受推送，请在iPhone确认收到。':result.barkConfigured?'电脑通知已发出，手机推送未确认成功。':'电脑通知已发出，手机推送尚未配置。');});
   $('diagnostics').onclick=()=>action(async()=>{$('diagnosticResult').textContent=(await rpc('diagnostics')).message;});
   $('shortcut').onclick=()=>action(async()=>{await rpc('shortcut');tell('桌面快捷方式已更新，请将本程序保留在固定位置。');});
   $('remoteReviewed').onchange=render;
+  $('update').onclick=()=>action(async()=>{await rpc('open_update');tell('已在浏览器打开下载页。下载后关闭神器，双击新的 Shenqi-Desktop.exe 即可，登录和设置都会保留。');});
+  $('dismissRun').onclick=()=>{dismissedRun=state.activeRun?.id||'';try{localStorage.setItem('shenqiDismissedRun',dismissedRun);}catch{}render();};
   $('connectPhone').onclick=()=>action(async()=>{const enabled=!nativeStatus.remoteEnabled;await rpc('remote_enable',{enabled});tell(enabled?'已连接并记住这台电脑。手机打开 l5space.icu/shenqi/，仅L5管理员可用。':'已断开手机连接。');});
   $('resetRemote').onclick=()=>action(async()=>{if(!$('remoteReviewed').checked||active()||guarded())throw Error('请先暂停并核对上一笔官方订单、防重记录。');await rpc('remote_reset');$('remoteReviewed').checked=false;tell('远程接收记录已清理，请重新核对后发送需求。');});
   function remoteStatus(){
     const run=state.activeRun;
     const order=state.observedOrder||(state.submissionAttempt&&state.attemptMeta&&state.lastOrder&&state.lastOrder.time>=state.attemptMeta.time&&state.lastOrder.date===state.attemptMeta.date?state.lastOrder:null);
-    return {ready:!!page.ready&&!page.error&&['/waimai/mindex/home','/waimai/mindex/menu','/waimai/mindex/mine'].includes(path()),loginNeeded:!!page.loginNeeded,busy:!!active()||actionBusy||stopping,locked:guarded(),stage:run?.stage||'idle',message:(page.error||run?.reason||page.status||'请在桌面核对账号和配送地址。').slice(0,300),order:order?{id:order.orderId,amount:order.total,url:order.url,couponVerified:order.source!=='observed'}:null};
+    return {ready:startable(),loginNeeded:!!page.loginNeeded,busy:!!active()||actionBusy||stopping,locked:guarded(),stage:run?.stage||'idle',message:(page.error||run?.reason||page.status||'请在桌面核对账号和配送地址。').slice(0,300),order:order?{id:order.orderId,amount:order.total,url:order.url,couponVerified:order.source!=='observed'}:null};
   }
   async function remoteCommand(command){
     const id=command.id;
@@ -197,10 +205,10 @@
         return {id,ok:true};
       }
       if(command.kind!=='meal'||!nativeStatus.remoteEnabled||actionBusy||stopping)throw Error('远程控制未就绪，或桌面正在处理其他操作。');
-      if(active()||guarded()||!storageReady||!page.ready||page.error||page.loginNeeded||!['/waimai/mindex/home','/waimai/mindex/menu','/waimai/mindex/mine'].includes(path()))throw Error('请先在桌面核对账号、配送地址及上一笔订单。');
+      if(active()||guarded()||!storageReady||!startable())throw Error('请先在桌面核对账号、配送地址及上一笔订单。');
       const intent=ShenqiPolicy.intent(command.request),budget=command.budget;
       if(!Number.isSafeInteger(budget)||budget<1||budget>100000||intent.budget!==null&&intent.budget!==budget||command.authorized!==true)throw Error('需求、预算或本次授权不一致。');
-      actionBusy=true;$('request').value=command.request;$('budget').value=(budget/100).toFixed(2);$('mealConsent').checked=false;render();
+      actionBusy=true;$('request').value=command.request;$('budget').value=(budget/100).toFixed(2);render();
       try{await message({type:'start_now',currentMenu:path()==='/waimai/mindex/menu'?page.url:null,schedule:{...ShenqiSchedule.defaults,enabled:true,authorized:true,budget,request:command.request,anyShop:true,defaultSpecs:true}});await refresh(true);}
       finally{actionBusy=false;render();}
       return {id,ok:true};
