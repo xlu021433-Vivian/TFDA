@@ -34,7 +34,7 @@
     // A merchant is not a restaurant merely because it has a delivery price.
     if(/医药|药房|药店|药品|药局|医院|门诊|诊所|医疗|快递电商|烟酒|鲜花|花艺|数码|日百|百货|超市|便利店|宠物|生日蛋糕|隐形眼镜|眼镜|美瞳|护理液|护肤|美妆|彩妆|面膜|粉底|日用品|成人用品|情趣|五金|手机维修|文具|珠宝|服饰|鞋帽|母婴|玩具|绿植/.test(name))return false;
     if(!requireEvidence)return true; // Generic official document titles need not be merchant names.
-    return /餐|饭|河粉|米粉|米线|螺蛳粉|酸辣粉|肠粉|面馆|面条|拉面|牛肉面|拌面|烩面|刀削面|油泼面|削筋面|粥|饼|饺|包子|汤包|馄饨|抄手|云吞|馍|麻辣烫|麻辣拌|冒菜|凉皮|轻食|沙拉|汉堡|披萨|寿司|烤|炸鸡|黄焖鸡|鸡公煲|牛排|烧腊|烧鹅|卤味|熟食|便当|小吃|麻辣香锅|火锅|关东煮|煲仔|沙县|兰州|桂林|柳州|奶茶|咖啡|果茶|柠檬茶|甜品|冰淇淋|鲜奶|豆浆|肯德基|麦当劳|德克士|华莱士|塔斯汀|必胜客|老乡鸡|乡村基|大米先生|真功夫|瑞幸|库迪|星巴克|蜜雪|古茗|茶百道|沪上阿姨|霸王茶姬|茉莉奶白|喜茶|奈雪|一点点|1点点|益禾堂|甜啦啦|CoCo|Manner|Costa|茶话弄/i.test(name);
+    return /餐|饭|河粉|米粉|米线|螺蛳粉|酸辣粉|肠粉|面馆|面条|拉面|牛肉面|拌面|烩面|刀削面|油泼面|削筋面|粥|饼|饺|包子|汤包|馄饨|抄手|云吞|馍|麻辣烫|麻辣拌|冒菜|凉皮|轻食|沙拉|汉堡|披萨|寿司|烤|炸鸡|黄焖鸡|鸡公煲|牛排|烧腊|烧鹅|卤味|熟食|便当|小吃|麻辣香锅|火锅|关东煮|煲仔|沙县|兰州|桂林|柳州|奶茶|咖啡|果茶|柠檬茶|甜品|甜点|糖水|芋圆|双皮奶|冰粉|龟苓膏|烘焙|西点|冰淇淋|鲜奶|豆浆|肯德基|麦当劳|德克士|华莱士|塔斯汀|必胜客|老乡鸡|乡村基|大米先生|真功夫|瑞幸|库迪|星巴克|蜜雪|古茗|茶百道|沪上阿姨|霸王茶姬|茉莉奶白|喜茶|奈雪|一点点|1点点|益禾堂|甜啦啦|CoCo|Manner|Costa|茶话弄/i.test(name);
   }
   function checkPlan(items, budget) {
     if (!Number.isSafeInteger(budget) || budget <= 0) throw Error('请填写有效的预算上限');
@@ -60,6 +60,7 @@
     '牛肉': /牛肉|牛腩|牛排/,
     '羊肉': /羊肉|羊排/,
     '轻食': /轻食|沙拉|蔬菜碗/,
+    '甜品': /甜品|甜点|糖水|双皮奶|姜撞奶|芋圆|冰粉|烧仙草|龟苓膏|西米露|布丁|班戟|蛋挞|舒芙蕾|雪糕|冰淇淋|圣代|麻薯|蛋糕|提拉米苏|慕斯|芋泥|红豆沙|绿豆沙|酒酿/,
   };
   function number(value) {
     if (/^\d+(?:\.\d{1,2})?$/.test(value)) return Number(value);
@@ -85,24 +86,29 @@
     if(budgets.some(x=>!Number.isFinite(x)||x<=0||x>1000)||new Set(budgets).size>1)throw Error('请说明一个明确预算，范围0.01至1000元');
     input=input.replace(budgetPattern,'');
     if(/预算|不超过|最多|上限|控制在/.test(input))throw Error('预算未识别，可写“25元以内”或“预算二十五元”');
+    input=input.replace(/整(?=\s*(?:[一两]|[份个碗杯]))/g,'');
     const quantityPattern=new RegExp('('+n+')\\s*(?:杯|份|碗)(?!以)','g');
     const amounts=[...input.matchAll(quantityPattern)].map(m=>number(m[1]));
     if(amounts.length>1||amounts.some(x=>!Number.isInteger(x)||x<1||x>10))throw Error('每次请选择一种餐品，共1–10份；组合餐请分开点');
     input=input.replace(quantityPattern,'');
+    // "来份 / 喝杯 / 要碗" name one serving; the measure word is not part of the dish.
+    input=input.replace(/(^|[来要点吃喝买])\s*[份杯碗盒](?!以)/g,'$1');
     const options={};
     for(const [group,values] of Object.entries(optionPatterns))for(const [label,regex] of Object.entries(values)){
       if(regex.test(input)){if(options[group]&&options[group]!==label)throw Error('同一规格有多个要求，请保留一种');options[group]=label;input=input.replace(new RegExp(regex.source,'g'),'');}
     }
     if(/不要|不加|不放|别放|不想吃|不想喝|不吃|不喝|忌口|过敏|不要肉|少辣|微辣|不辣/.test(input))throw Error('额外配料或辣度要求需要在官方规格中核对；支持明确糖度、冰量和杯型');
     if(/或者|还是|以及|加上|和|与|再来|另外/.test(input))throw Error('每次请说明一种餐品，例如“牛肉饭一份”或“奶茶两杯”');
-    input=input.replace(/请|麻烦|帮我|给我|我想要|我想|想要|想吃|想喝|我要|我|今天|中午|午餐|晚餐|早餐|来点|来个|来|点一[个下]|点|吃|喝|买|推荐|挑选|选择|选|必须使用优惠券|必须用券|使用优惠券|用优惠券|优惠券|用券|含配送费|含配送|含包装|券后|总共|一共|随机|随便|什么都行|都可以|都行|正餐|一个|一下|就好|吧|呀|啊|的|[,，。！!、:：;；?？\s]/g,'');
+    input=input.replace(/请|麻烦|帮我|给我|我想要|我想|想要|想吃|想喝|我要|要|我|今天|中午|午餐|晚餐|早餐|来点|来个|来|点一[个下]|点(?!心)|(?<!小)吃|喝|买|啥|推荐|挑选|选择|选|必须使用优惠券|必须用券|使用优惠券|用优惠券|优惠券|用券|含配送费|含配送|含包装|券后|总共|一共|随机|随便|什么都行|都可以|都行|正餐|一个|一下|就好|吧|呀|啊|的|[,，。！!、:：;；?？\s]/g,'');
     const drinks=Object.keys(categories).filter(x=>['奶茶','咖啡','果茶'].includes(x)&&categories[x].test(input));
     // A protein and a staple describe one dish; tea-latte belongs to milk tea, not coffee.
-    const category=drinks.includes('奶茶')?'奶茶':drinks[0]||(/饭|便当|盖浇/.test(input)?'米饭':/面|粉|米线|馄饨/.test(input)?'面条':Object.keys(categories).find(x=>categories[x].test(input))||'');
+    // Desserts are checked before staples so 冰粉 is not read as a noodle.
+    const dessert=categories['甜品'].test(input)||/^甜食?$/.test(input);
+    const category=drinks.includes('奶茶')?'奶茶':drinks[0]||(dessert?'甜品':/饭|便当|盖浇/.test(input)?'米饭':/面|粉|米线|馄饨/.test(input)?'面条':Object.keys(categories).find(x=>categories[x].test(input))||'');
     if(drinks.length>1&&!/茶拿铁/.test(input))throw Error('每次请说明一种饮品');
     if(inspectName(input))throw Error('餐品触发不吃猪肉或肉类来源核对规则：'+inspectName(input));
     const result={category,quantity:amounts[0]||1,budget:budgets.length?Math.round(budgets[0]*100):null};
-    const generic=['奶茶','咖啡','果茶','面条','米饭','饭','鸡肉','牛肉','羊肉','轻食','沙拉'];
+    const generic=['奶茶','咖啡','果茶','面条','米饭','饭','面','鸡肉','牛肉','羊肉','轻食','沙拉','甜品','甜点','甜','甜食'];
     if(input&&!generic.includes(input)){
       if(input.length>24||!/^[\p{L}\p{N}·]+$/u.test(input))throw Error('请用简短餐品名称描述，例如“珍珠奶茶”或“牛肉饭”');
       const dish=input.match(/^(牛肉|牛腩|鸡肉|鸡腿|鸡排|羊肉)(?:盖浇|盖|拌|炒)?(饭|面)$/);
@@ -125,9 +131,31 @@
   }
   function randomPlan(menu, request, budget, random = Math.random) {
     const candidates = menu.filter(item => !item.blocked && !inspectName(item.name) && !item.soldOut && Number.isSafeInteger(item.cents) && item.cents >= 0 && item.cents * request.quantity <= budget && matches(item,request));
-    if (!candidates.length) throw Error(`已加载菜单没有符合${request.category || '忌口和预算'}的在售商品；请在官方页换分类或换店后重试。不会用甜点代替饮品`);
+    if (!candidates.length) throw Error(`已加载菜单没有符合${request.category || '忌口和预算'}的在售商品；请在官方页换分类或换店后重试。${['奶茶','果茶','咖啡'].includes(request.category)?'不会用甜点代替饮品':'不会换成其他餐品'}`);
     const chosen = candidates[Math.min(candidates.length-1, Math.max(0, Math.floor(random()*candidates.length)))];
     const result = [{...chosen, desired:request.quantity}]; checkPlan(result,budget); return result;
+  }
+  // Dish names come first. When the request only names the merchant itself (a brand such as 肯德基),
+  // no dish carries that word, so choose a main item in that merchant instead of giving up.
+  function shopPlan(eligible, request, budget, shopName, random = Math.random) {
+    try { return randomPlan(eligible(request), request, budget, random); }
+    catch (error) {
+      if (!request.keywords?.length || !shopName || !request.keywords.every(word => shopName.includes(word))) throw error;
+      const relaxed = {...request}; delete relaxed.keywords;
+      try { return randomPlan(eligible(relaxed), relaxed, budget, random); } catch { throw error; }
+    }
+  }
+  // Prefer merchants whose name (then card text) matches the request; with no match keep the full random pool.
+  function shopScore(shop,request){
+    const name=String(shop.name||''),body=String(shop.body||'');let score=0;
+    for(const word of request.keywords||[])score+=name.includes(word)?2:body.includes(word)?1:0;
+    if(request.category)score+=categories[request.category].test(name)?2:categories[request.category].test(body)?1:0;
+    return score;
+  }
+  function preferShops(shops,request){
+    if(!request||(!request.category&&!request.keywords?.length))return shops;
+    const scored=shops.map(shop=>({shop,score:shopScore(shop,request)})),best=Math.max(0,...scored.map(item=>item.score));
+    return best>0?scored.filter(item=>item.score===best).map(item=>item.shop):shops;
   }
   function previewVerdict(total, budget, coupons) {
     if (total === null) return {ok:false,message:'未读到平台最终合计，无法判断是否在预算内'};
@@ -137,7 +165,7 @@
     return {ok:true,message:'已核对券实际抵扣，当前官方合计在预算内'};
   }
   const money = value => value === null ? '待核对' : `¥${(value / 100).toFixed(2)}`;
-  const api = {cents, price, inspectName, supported, foodShop, checkPlan, intent, describe, matches, optionPatterns, optionMatches, randomPlan, previewVerdict, money};
+  const api = {cents, price, inspectName, supported, foodShop, checkPlan, intent, describe, matches, optionPatterns, optionMatches, randomPlan, shopPlan, preferShops, previewVerdict, money};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ShenqiPolicy = api;
 })(globalThis);

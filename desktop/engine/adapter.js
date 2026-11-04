@@ -244,11 +244,12 @@
       return {minimum:unique(minima),delivery:unique(deliveries)};
     }
     function shops(budget,request,tried=[]){
-      const category=policy.intent(request||'').category,isDrink=['奶茶','果茶','咖啡'].includes(category);
+      // Meals skip tea and dessert shops; drink and dessert requests may use them.
+      const category=policy.intent(request||'').category,isDrink=['奶茶','果茶','咖啡'].includes(category),isDessert=category==='甜品';
       return [...doc.querySelectorAll('.poilist-item')].map(element=>{
         const name=text(element.querySelector('.poilist-item-info1name')),body=text(element);
         return {name,...shopFees(element),element,body};
-      }).filter(item=>supportedShopLink(item.element)&&item.name&&!tried.includes(item.name)&&!policy.inspectName(item.name)&&policy.foodShop(item.name,true)&&!/休息中|暂停营业|超出配送|接受预订|预订中/.test(item.body)&&item.minimum!==null&&item.delivery!==null&&item.minimum+item.delivery<=budget&&(isDrink||!/奶茶|咖啡|果茶|茶百道|茶话弄|茶姬|奶白|喜茶|奈雪|蜜雪|古茗|沪上阿姨|甜品|蛋糕|一点点|1点点|益禾堂|甜啦啦|CoCo/i.test(item.name)))
+      }).filter(item=>supportedShopLink(item.element)&&item.name&&!tried.includes(item.name)&&!policy.inspectName(item.name)&&policy.foodShop(item.name,true)&&!/休息中|暂停营业|超出配送|接受预订|预订中/.test(item.body)&&item.minimum!==null&&item.delivery!==null&&item.minimum+item.delivery<=budget&&(isDrink||isDessert||!/奶茶|咖啡|果茶|茶百道|茶话弄|茶姬|奶白|喜茶|奈雪|蜜雪|古茗|沪上阿姨|甜品|甜点|糖水|芋圆|双皮奶|冰粉|龟苓膏|烘焙|西点|蛋糕|一点点|1点点|益禾堂|甜啦啦|CoCo/i.test(item.name)))
         .filter(item=>!isDrink||(category==='咖啡'?/咖啡|瑞幸|库迪|星巴克|Manner|Costa/i:/茶|奶|蜜雪|古茗|沪上|一点点|1点点|CoCo|益禾|甜啦/i).test(item.name));
     }
     function shopDiagnostics(budget=2500,request='') {

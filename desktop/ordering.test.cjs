@@ -22,6 +22,13 @@ test('known food evidence and supported merchant links are required before navig
   const chosen=a.shops(2500,'河粉')[0];chosen.element.querySelector('a').href=unsupported;assert.throws(()=>a.openShop(chosen,2500,'河粉'),/列表已变化/);
 });
 
+test('dessert requests may open dessert shops, while meals still skip them',t=>{
+  const dom=new JSDOM('<body>'+['阿婆糖水铺','老王麻辣烫'].map(name=>'<div class="poilist-item"><b class="poilist-item-info1name">'+name+'</b><span class="poi-info-txt">起送 ¥10</span><span class="poi-info-txt">配送 约¥0</span></div>').join('')+'</body>',{url:'https://h5.waimai.meituan.com/waimai/mindex/home'});t.after(()=>dom.window.close());
+  const adapter=create(dom.window.document,{visible:()=>true});
+  assert.deepEqual(adapter.shops(2500,'想吃甜品').map(x=>x.name),['阿婆糖水铺','老王麻辣烫']);
+  assert.deepEqual(P.preferShops(adapter.shops(2500,'想吃甜品'),P.intent('想吃甜品')).map(x=>x.name),['阿婆糖水铺']);
+  assert.deepEqual(adapter.shops(2500,'随便吃点').map(x=>x.name),['老王麻辣烫']);
+});
 test('real separate fee fields cannot absorb the adjacent arrival time or distance',t=>{
   const card=(name,fee,min=20,extra='')=>'<div class="poilist-item"><div class="poilist-item-info1name">'+name+'</div><span class="poi-info-txt">起送 ¥'+min+'</span><span class="poi-info-txt no-margin-right">'+fee+'</span><span class="poi-info-txt">15分钟</span><span class="poi-info-txt">1.9km</span>'+extra+'</div>';
   const dom=new JSDOM(card('农耕记·盖码饭','配送 约¥0')+card('牛肉河粉餐厅','配送 约¥3.50')+card('鸡肉饭餐厅','免配送费')+card('牛肉面馆','配送 约¥6')+card('茶百道','配送 约¥0',18),{url:'https://h5.waimai.meituan.com/waimai/mindex/home'});t.after(()=>dom.window.close());
