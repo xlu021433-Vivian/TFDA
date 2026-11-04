@@ -37,6 +37,10 @@ internal sealed class DesktopHost : Form
     readonly List<string> errors=new List<string>();
     internal int ExitCode=0;
     static readonly string Home="https://h5.waimai.meituan.com/waimai/mindex/home";
+    const string ReleasePage="https://github.com/xlu021433-Vivian/TFDA/releases/latest";
+    const string ReleaseApi="https://api.github.com/repos/xlu021433-Vivian/TFDA/releases/latest";
+    string latestVersion;
+    Task updateCheck;
     internal DesktopHost()
     {
         store=new LocalStore(Bootstrap.Root);
@@ -281,7 +285,7 @@ internal sealed class DesktopHost : Form
             }
             panel.Source=new Uri("https://shenqi.local/options.html");
             await Task.WhenAny(panelReady.Task,Task.Delay(20000));if(!panelReady.Task.IsCompleted){string detail=await panel.CoreWebView2.ExecuteScriptAsync("JSON.stringify({title:document.title,message:document.getElementById('message')?.textContent,state:document.readyState})");throw new IOException("控制面板启动超时。"+detail+string.Join("；",errors.ToArray()));}
-            loading.Visible=false;initialized=true;UpdateOfficialNavigation();RestoreWebViews();timer.Start();if(!Bootstrap.Test)remoteTimer.Start();official.Source=new Uri(Home);
+            loading.Visible=false;initialized=true;if(!Bootstrap.Test)updateCheck=CheckUpdate();UpdateOfficialNavigation();RestoreWebViews();timer.Start();if(!Bootstrap.Test)remoteTimer.Start();official.Source=new Uri(Home);
             if(Bootstrap.Test&&!Bootstrap.Demo)await SelfTest();
         }
         catch(Exception error)
@@ -326,7 +330,8 @@ internal sealed class DesktopHost : Form
             case "storage_set":store.Change((Dictionary<string,object>)args["change"]);UpdateOfficialNavigation();return new {ok=true};
             case "storage_remove":store.Remove((System.Collections.IEnumerable)args["keys"]);UpdateOfficialNavigation();return new {ok=true};
             case "panel_ready":panelReady.TrySetResult(true);return new {ok=true};
-            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version="0.6.4",remoteEnabled=remote.Enabled};
+            case "status":return new {barkConfigured=!string.IsNullOrEmpty(store.BarkKey),lastBark,version=Bootstrap.Version,remoteEnabled=remote.Enabled,latestVersion};
+            case "open_update":Process.Start(new ProcessStartInfo(ReleasePage){UseShellExecute=true});return new {ok=true};
             case "remote_enable":
                 if(!(args["enabled"] is bool))throw new IOException("远程开关格式无效。");remote.Enable((bool)args["enabled"]);await remote.Poll(RemoteInspect,RemoteExecute);return new {ok=true};
             case "remote_reset":await remote.Reset(RemoteInspect);return new {ok=true};
@@ -350,7 +355,7 @@ internal sealed class DesktopHost : Form
                 return new {ok=true};
             case "notify":return await Notify(args);
             case "diagnostics":
-                return new {message="程序：0.6.4\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n绘制模式：软件兼容\n显示恢复次数："+renderRecoveries+"\n桌面控制台错误："+errors.Count};
+                return new {message="程序："+Bootstrap.Version+"\n内置网页："+(official.CoreWebView2==null?"未启动":"已启动")+"\n当前网页："+(official.Source==null?"未打开":official.Source.GetLeftPart(UriPartial.Path))+"\n"+pageStatus+"\n绘制模式：软件兼容\n显示恢复次数："+renderRecoveries+"\n桌面控制台错误："+errors.Count};
             default:throw new IOException("不支持此操作。");
         }
     }
@@ -400,6 +405,26 @@ internal sealed class DesktopHost : Form
             }
         }
         return new {desktop,bark,barkConfigured=configured};
+    }
+    // One quiet check per launch: only the public release tag is read, nothing about the user is sent.
+    async Task CheckUpdate()
+    {
+        try
+        {
+            ServicePointManager.SecurityProtocol=SecurityProtocolType.Tls12;
+            using(var client=new HttpClient {Timeout=TimeSpan.FromSeconds(8)})
+            {
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Shenqi-Desktop/"+Bootstrap.Version);
+                client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+                string body=await client.GetStringAsync(ReleaseApi);
+                if(body.Length>262144)return;
+                var data=Bootstrap.Json.Deserialize<Dictionary<string,object>>(body);
+                object tag;System.Version latest,current;
+                if(data!=null&&data.TryGetValue("tag_name",out tag)&&Convert.ToString(tag).StartsWith("v")&&System.Version.TryParse(Convert.ToString(tag).Substring(1),out latest)&&System.Version.TryParse(Bootstrap.Version,out current)&&latest>current)
+                    latestVersion=latest.ToString();
+            }
+        }
+        catch{}
     }
     void WriteReport(object value){if(Bootstrap.Report!=null)File.WriteAllText(Bootstrap.Report,Bootstrap.Json.Serialize(value),new UTF8Encoding(false));}
     async Task SelfTest()

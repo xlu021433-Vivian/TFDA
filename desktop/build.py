@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import subprocess
 import zipfile
@@ -9,6 +10,8 @@ import zipfile
 ROOT=Path(__file__).resolve().parents[1]
 SDK='1.0.4258.31'
 SDK_SHA='56f7f4b8bf9aee4b8efefbbdd4f67d5f74ebd1b100ed0806da71bf76af481aa9'
+# The release number lives only in Bootstrap.cs.
+VERSION=re.search(r'AssemblyFileVersion\("(\d+\.\d+\.\d+)\.\d+"\)',(ROOT/'desktop'/'Bootstrap.cs').read_text(encoding='utf-8')).group(1)
 ENGINE=('guard-data.js','policy.js','schedule.js','adapter.js','styles.js','content.js','watch.js')
 
 def engine(name):
@@ -65,7 +68,7 @@ def build(package,output):
     subprocess.run(command,check=True)
     digest=hashlib.sha256(executable.read_bytes()).hexdigest()
     (output/'SHA256SUMS.txt').write_text(digest+'  '+executable.name+'\n',encoding='ascii')
-    print(json.dumps({'exe':str(executable),'bytes':executable.stat().st_size,'sha256':digest,'sdk':SDK},ensure_ascii=False))
+    print(json.dumps({'version':VERSION,'exe':str(executable),'bytes':executable.stat().st_size,'sha256':digest,'sdk':SDK},ensure_ascii=False))
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/'dist/desktop-0.6.4');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--sdk',type=Path,default=ROOT/f'.tool-cache/webview2/microsoft.web.webview2.{SDK}.nupkg');parser.add_argument('--output',type=Path,default=ROOT/f'dist/desktop-{VERSION}');args=parser.parse_args();build(args.sdk.resolve(),args.output.resolve())
