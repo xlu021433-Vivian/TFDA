@@ -299,7 +299,7 @@
         const candidates=adapter.shops(task.config.budget,task.config.request,task.tried);
         if(task.tried.length>=5)throw Error('已核对5家餐厅仍没有符合本次需求的餐品，已停止；没有创建新订单');
         if(!candidates.length){const report=adapter.shopDiagnostics(task.config.budget,task.config.request);throw Error(!report.length?'尚未读到商家列表，请在官方页确认配送位置后重试；没有创建新订单':report.some(item=>P.foodShop(item.name,true)&&(item.minimum===null||item.delivery===null))?'餐厅的起送价或配送费尚未读取完整，请刷新商家列表；没有创建新订单':'当前已加载餐厅经营业状态、忌口、预算及需求筛选后没有可选项；没有创建新订单');}
-        const chosen=candidates[Math.floor(Math.random()*candidates.length)];
+        const pool=P.preferShops(candidates,P.intent(task.config.request)),chosen=pool[Math.floor(Math.random()*pool.length)];
         await message({type:'schedule_shop',id:task.id,name:chosen.name,minimum:chosen.minimum});
         if(stopped)throw Error('已暂停选店');
         status('正在选择商家：'+chosen.name);adapter.openShop(chosen,task.config.budget,task.config.request,task.tried);return;
@@ -307,9 +307,9 @@
       if(task.stage!=='menu')throw Error('购物车阶段无法核对，不会重复加购');
       adapter.ensure();if(adapter.cart().count!==0)throw Error('商家已有购物车商品，无法确认来源，今日不自动修改');
       const request=P.intent(task.config.request),all=adapter.cards();
-      const candidates=all.filter(item=>item.cents*request.quantity>=task.minimum&&(!task.merchant||task.merchant.foods.includes(item.name))&&(request.category||request.keywords?.length||/饭|面|鸡|牛|羊|沙拉|轻食/.test(item.name)));
+      const eligible=wanted=>all.filter(item=>item.cents*wanted.quantity>=task.minimum&&(!task.merchant||task.merchant.foods.includes(item.name))&&(wanted.category||wanted.keywords?.length||/饭|面|鸡|牛|羊|沙拉|轻食/.test(item.name)));
       let plan;
-      try{plan=P.randomPlan(candidates,request,task.config.budget);}catch(error){
+      try{plan=P.shopPlan(eligible,request,task.config.budget,task.shopName);}catch(error){
         if(!task.currentShop&&task.config.anyShop&&task.tried.length<5){await message({type:'schedule_stage',id:task.id,stage:'home'});if(stopped)throw Error('已暂停换店');location.assign('https://h5.waimai.meituan.com/waimai/mindex/home');return;}
         throw error;
       }
